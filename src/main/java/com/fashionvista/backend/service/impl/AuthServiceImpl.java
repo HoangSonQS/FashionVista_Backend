@@ -47,11 +47,27 @@ public class AuthServiceImpl implements AuthService {
     @Override
     @Transactional(readOnly = true)
     public AuthResponse login(LoginRequest request) {
-        User user = userRepository.findByEmail(request.getEmail())
-            .orElseThrow(() -> new IllegalArgumentException("Email hoặc mật khẩu không đúng."));
+        String identifier = request.getIdentifier().trim();
+        User user = null;
+
+        // Thử tìm theo email trước
+        if (identifier.contains("@")) {
+            user = userRepository.findByEmail(identifier)
+                .orElse(null);
+        }
+
+        // Nếu không tìm thấy theo email, thử tìm theo số điện thoại
+        if (user == null) {
+            user = userRepository.findByPhoneNumber(identifier)
+                .orElse(null);
+        }
+
+        if (user == null) {
+            throw new IllegalArgumentException("Email/số điện thoại hoặc mật khẩu không đúng.");
+        }
 
         if (!passwordEncoder.matches(request.getPassword(), user.getPassword())) {
-            throw new IllegalArgumentException("Email hoặc mật khẩu không đúng.");
+            throw new IllegalArgumentException("Email/số điện thoại hoặc mật khẩu không đúng.");
         }
 
         UserResponse userResponse = UserResponse.fromEntity(user);
