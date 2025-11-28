@@ -9,6 +9,8 @@ import lombok.Data;
 @Data
 public class ProductVariantRequest {
 
+    private Long id;
+
     private String size;
     private String color;
 

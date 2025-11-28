@@ -11,10 +11,12 @@ public class ProductListItemDto {
     Long id;
     String name;
     String slug;
+    String sku;
     BigDecimal price;
     BigDecimal compareAtPrice;
     String status;
     boolean featured;
     String thumbnailUrl;
+    String category;
 }
 

@@ -3,6 +3,7 @@ package com.fashionvista.backend.config;
 import java.util.List;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpMethod;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
@@ -47,8 +48,11 @@ public class SecurityConfig {
             .csrf(csrf -> csrf.disable())
             .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             .authorizeHttpRequests(auth -> auth
-                .requestMatchers("/api/auth/**").permitAll()
-                .requestMatchers("/api/products/**", "/api/search/**", "/api/categories/**", "/api/addresses/**").permitAll()
+                .requestMatchers("/api/auth/**", "/api/admin/auth/**").permitAll()
+                .requestMatchers(HttpMethod.GET, "/api/products/**").permitAll() // GET products cho phép public
+                .requestMatchers(HttpMethod.POST, "/api/products").authenticated() // POST products yêu cầu authentication (method-level sẽ check ADMIN)
+                .requestMatchers("/api/search/**", "/api/categories/**", "/api/addresses/**").permitAll()
+                .requestMatchers("/api/admin/**").hasRole("ADMIN")
                 .anyRequest().authenticated()
             )
             .oauth2ResourceServer(oauth2 -> oauth2

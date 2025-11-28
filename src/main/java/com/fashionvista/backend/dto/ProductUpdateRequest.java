@@ -9,7 +9,7 @@ import java.util.List;
 import lombok.Data;
 
 @Data
-public class ProductCreateRequest {
+public class ProductUpdateRequest {
 
     @NotBlank
     private String name;
@@ -46,4 +46,6 @@ public class ProductCreateRequest {
 
     private List<Long> removedImageIds;
 }
+
+
 

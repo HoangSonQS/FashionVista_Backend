@@ -47,29 +47,42 @@ public class AuthServiceImpl implements AuthService {
     @Override
     @Transactional(readOnly = true)
     public AuthResponse login(LoginRequest request) {
+        User user = authenticate(request);
+        return buildAuthResponse(user);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public AuthResponse loginAdmin(LoginRequest request) {
+        User user = authenticate(request);
+        if (user.getRole() != UserRole.ADMIN) {
+            throw new IllegalArgumentException("Tài khoản không có quyền quản trị.");
+        }
+        return buildAuthResponse(user);
+    }
+
+    private User authenticate(LoginRequest request) {
         String identifier = request.getIdentifier().trim();
+        User user = findByIdentifier(identifier);
+
+        if (user == null || !passwordEncoder.matches(request.getPassword(), user.getPassword())) {
+            throw new IllegalArgumentException("Email/số điện thoại hoặc mật khẩu không đúng.");
+        }
+        return user;
+    }
+
+    private User findByIdentifier(String identifier) {
         User user = null;
-
-        // Thử tìm theo email trước
         if (identifier.contains("@")) {
-            user = userRepository.findByEmail(identifier)
-                .orElse(null);
+            user = userRepository.findByEmail(identifier).orElse(null);
         }
-
-        // Nếu không tìm thấy theo email, thử tìm theo số điện thoại
         if (user == null) {
-            user = userRepository.findByPhoneNumber(identifier)
-                .orElse(null);
+            user = userRepository.findByPhoneNumber(identifier).orElse(null);
         }
+        return user;
+    }
 
-        if (user == null) {
-            throw new IllegalArgumentException("Email/số điện thoại hoặc mật khẩu không đúng.");
-        }
-
-        if (!passwordEncoder.matches(request.getPassword(), user.getPassword())) {
-            throw new IllegalArgumentException("Email/số điện thoại hoặc mật khẩu không đúng.");
-        }
-
+    private AuthResponse buildAuthResponse(User user) {
         UserResponse userResponse = UserResponse.fromEntity(user);
         String token = jwtService.generateToken(user);
         return new AuthResponse(token, userResponse);
