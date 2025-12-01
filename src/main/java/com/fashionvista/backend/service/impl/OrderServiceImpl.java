@@ -22,9 +22,7 @@ import com.fashionvista.backend.service.UserContextService;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.math.BigDecimal;
-import java.time.Instant;
 import java.util.List;
-import java.util.concurrent.atomic.AtomicLong;
 import lombok.RequiredArgsConstructor;
 import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.stereotype.Service;
@@ -41,8 +39,6 @@ public class OrderServiceImpl implements OrderService {
     private final CartService cartService;
     private final UserContextService userContextService;
     private final ObjectMapper objectMapper;
-
-    private static final AtomicLong DAILY_SEQUENCE = new AtomicLong(0);
 
     @Override
     @Transactional
@@ -172,6 +168,7 @@ public class OrderServiceImpl implements OrderService {
                 .id(item.getId())
                 .productName(item.getProductName())
                 .productSlug(item.getProduct().getSlug())
+                .productImage(item.getProductImage())
                 .size(item.getVariant() != null ? item.getVariant().getSize() : null)
                 .color(item.getVariant() != null ? item.getVariant().getColor() : null)
                 .quantity(item.getQuantity())
@@ -216,8 +213,10 @@ public class OrderServiceImpl implements OrderService {
     }
 
     private String generateOrderNumber() {
-        long sequence = DAILY_SEQUENCE.incrementAndGet();
-        return "ORD-" + Instant.now().toString().substring(0, 10).replace("-", "") + "-" + sequence;
+        // Sử dụng ngày + đoạn UUID ngắn để tránh trùng lặp khi restart service
+        String datePart = java.time.LocalDate.now().toString().replace("-", ""); // yyyyMMdd
+        String randomPart = java.util.UUID.randomUUID().toString().substring(0, 8).toUpperCase();
+        return "ORD-" + datePart + "-" + randomPart;
     }
 
     private String buildShippingSnapshot(CheckoutRequest request) {

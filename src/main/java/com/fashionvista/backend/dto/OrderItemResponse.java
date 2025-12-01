@@ -11,6 +11,7 @@ public class OrderItemResponse {
     Long id;
     String productName;
     String productSlug;
+    String productImage;
     String size;
     String color;
     Integer quantity;
