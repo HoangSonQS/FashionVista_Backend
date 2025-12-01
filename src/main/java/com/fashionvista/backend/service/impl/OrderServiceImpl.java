@@ -11,6 +11,7 @@ import com.fashionvista.backend.entity.OrderItem;
 import com.fashionvista.backend.entity.Payment;
 import com.fashionvista.backend.entity.PaymentStatus;
 import com.fashionvista.backend.entity.ProductVariant;
+import com.fashionvista.backend.entity.ShippingMethod;
 import com.fashionvista.backend.repository.CartRepository;
 import com.fashionvista.backend.repository.OrderRepository;
 import com.fashionvista.backend.repository.PaymentRepository;
@@ -18,6 +19,8 @@ import com.fashionvista.backend.repository.ProductVariantRepository;
 import com.fashionvista.backend.service.CartService;
 import com.fashionvista.backend.service.OrderService;
 import com.fashionvista.backend.service.UserContextService;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.List;
@@ -37,6 +40,7 @@ public class OrderServiceImpl implements OrderService {
     private final CartRepository cartRepository;
     private final CartService cartService;
     private final UserContextService userContextService;
+    private final ObjectMapper objectMapper;
 
     private static final AtomicLong DAILY_SEQUENCE = new AtomicLong(0);
 
@@ -60,6 +64,7 @@ public class OrderServiceImpl implements OrderService {
             .status(com.fashionvista.backend.entity.OrderStatus.PENDING)
             .paymentMethod(request.getPaymentMethod())
             .paymentStatus(PaymentStatus.PENDING)
+            .shippingMethod(request.getShippingMethod())
             .shippingAddress(buildShippingSnapshot(request))
             .subtotal(BigDecimal.ZERO)
             .shippingFee(BigDecimal.ZERO)
@@ -75,8 +80,9 @@ public class OrderServiceImpl implements OrderService {
         CartResponse cartResponse = cartService.getMyCart();
 
         order.setSubtotal(cartResponse.getSubtotal());
-        order.setShippingFee(cartResponse.getShippingFee());
-        order.setTotal(cartResponse.getTotal());
+        BigDecimal shippingFee = calculateShippingFee(cartResponse.getSubtotal(), request.getShippingMethod());
+        order.setShippingFee(shippingFee);
+        order.setTotal(order.getSubtotal().add(shippingFee));
         order.setDiscount(BigDecimal.ZERO);
 
         Order saved = orderRepository.save(order);
@@ -180,6 +186,7 @@ public class OrderServiceImpl implements OrderService {
             .status(order.getStatus())
             .paymentMethod(order.getPaymentMethod())
             .paymentStatus(order.getPaymentStatus())
+            .shippingMethod(order.getShippingMethod())
             .subtotal(order.getSubtotal())
             .shippingFee(order.getShippingFee())
             .discount(order.getDiscount())
@@ -189,23 +196,46 @@ public class OrderServiceImpl implements OrderService {
             .build();
     }
 
+    private BigDecimal calculateShippingFee(BigDecimal subtotal, ShippingMethod method) {
+        if (subtotal == null || subtotal.compareTo(BigDecimal.ZERO) <= 0) {
+            return BigDecimal.ZERO;
+        }
+
+        // Free shipping cho đơn từ 1,000,000đ
+        BigDecimal threshold = BigDecimal.valueOf(1_000_000);
+        if (subtotal.compareTo(threshold) >= 0) {
+            return BigDecimal.ZERO;
+        }
+
+        BigDecimal base = BigDecimal.valueOf(30_000);
+        return switch (method) {
+            case FAST -> base.add(BigDecimal.valueOf(10_000));
+            case EXPRESS -> base.add(BigDecimal.valueOf(20_000));
+            case STANDARD -> base;
+        };
+    }
+
     private String generateOrderNumber() {
         long sequence = DAILY_SEQUENCE.incrementAndGet();
         return "ORD-" + Instant.now().toString().substring(0, 10).replace("-", "") + "-" + sequence;
     }
 
     private String buildShippingSnapshot(CheckoutRequest request) {
-        return String.format(
-            "%s, %s, %s, %s (Phone: %s)%s",
-            request.getAddress(),
-            request.getWard(),
-            request.getDistrict(),
-            request.getCity(),
-            request.getPhone(),
-            request.getNotes() != null && !request.getNotes().isBlank()
-                ? " | Notes: " + request.getNotes()
-                : ""
-        );
+        var snapshot = new java.util.LinkedHashMap<String, Object>();
+        snapshot.put("fullName", request.getFullName());
+        snapshot.put("phone", request.getPhone());
+        snapshot.put("address", request.getAddress());
+        snapshot.put("ward", request.getWard());
+        snapshot.put("district", request.getDistrict());
+        snapshot.put("city", request.getCity());
+        if (request.getNotes() != null && !request.getNotes().isBlank()) {
+            snapshot.put("notes", request.getNotes());
+        }
+        try {
+            return objectMapper.writeValueAsString(snapshot);
+        } catch (JsonProcessingException e) {
+            throw new IllegalStateException("Không thể tạo thông tin địa chỉ giao hàng.", e);
+        }
     }
 }
 

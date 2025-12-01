@@ -14,7 +14,6 @@ import com.fashionvista.backend.entity.Product;
 import com.fashionvista.backend.entity.ProductImage;
 import com.fashionvista.backend.entity.ProductStatus;
 import com.fashionvista.backend.entity.ProductVariant;
-import com.fashionvista.backend.repository.CartItemRepository;
 import com.fashionvista.backend.repository.CategoryRepository;
 import com.fashionvista.backend.repository.ProductImageRepository;
 import com.fashionvista.backend.repository.ProductRepository;
@@ -47,7 +46,6 @@ public class ProductServiceImpl implements ProductService {
     private final CategoryRepository categoryRepository;
     private final ProductVariantRepository productVariantRepository;
     private final ProductImageRepository productImageRepository;
-    private final CartItemRepository cartItemRepository;
     private final CloudinaryService cloudinaryService;
 
     @Override
@@ -229,26 +227,6 @@ public class ProductServiceImpl implements ProductService {
             if (request.getCategorySlug() != null && !request.getCategorySlug().isBlank()) {
                 category = categoryRepository.findBySlug(request.getCategorySlug())
                     .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy danh mục."));
-            }
-
-            // Validate SKU: không được trùng với sản phẩm khác
-            if (!product.getSku().equals(request.getSku())) {
-                productRepository.findBySku(request.getSku())
-                    .ifPresent(existing -> {
-                        if (!existing.getId().equals(id)) {
-                            throw new IllegalArgumentException("SKU đã được sử dụng bởi sản phẩm khác.");
-                        }
-                    });
-            }
-
-            // Validate Slug: không được trùng với sản phẩm khác
-            if (!product.getSlug().equals(request.getSlug())) {
-                productRepository.findBySlug(request.getSlug())
-                    .ifPresent(existing -> {
-                        if (!existing.getId().equals(id)) {
-                            throw new IllegalArgumentException("Slug đã được sử dụng bởi sản phẩm khác.");
-                        }
-                    });
             }
 
             product.setName(request.getName());
@@ -434,11 +412,7 @@ public class ProductServiceImpl implements ProductService {
         }
 
         if (variantRequests.isEmpty()) {
-            // Đánh dấu inactive thay vì xóa để tránh conflict với cart_items
-            product.getVariants().forEach(variant -> {
-                variant.setActive(false);
-                productVariantRepository.save(variant);
-            });
+            product.getVariants().forEach(productVariantRepository::delete);
             product.getVariants().clear();
             product.getVariants().add(ProductVariant.builder()
                 .product(product)
@@ -459,17 +433,6 @@ public class ProductServiceImpl implements ProductService {
                     .filter(variant -> variantRequest.getId().equals(variant.getId()))
                     .findFirst()
                     .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy biến thể."));
-                
-                // Validate variant SKU: không được trùng với variant khác
-                if (!existing.getSku().equals(variantRequest.getSku())) {
-                    productVariantRepository.findBySku(variantRequest.getSku())
-                        .ifPresent(conflict -> {
-                            if (!conflict.getId().equals(existing.getId())) {
-                                throw new IllegalArgumentException("SKU biến thể '" + variantRequest.getSku() + "' đã được sử dụng.");
-                            }
-                        });
-                }
-                
                 existing.setSize(variantRequest.getSize());
                 existing.setColor(variantRequest.getColor());
                 existing.setSku(variantRequest.getSku());
@@ -478,12 +441,6 @@ public class ProductServiceImpl implements ProductService {
                 existing.setActive(variantRequest.isActive());
                 keepIds.add(existing.getId());
             } else {
-                // Validate new variant SKU: không được trùng với variant khác
-                productVariantRepository.findBySku(variantRequest.getSku())
-                    .ifPresent(conflict -> {
-                        throw new IllegalArgumentException("SKU biến thể '" + variantRequest.getSku() + "' đã được sử dụng.");
-                    });
-                
                 ProductVariant newVariant = toVariantEntity(product, variantRequest);
                 product.getVariants().add(newVariant);
             }
@@ -491,19 +448,8 @@ public class ProductServiceImpl implements ProductService {
 
         for (ProductVariant variant : existingVariants) {
             if (variant.getId() != null && !keepIds.contains(variant.getId())) {
-                // Kiểm tra xem variant có đang được sử dụng trong cart_items không
-                boolean isUsedInCart = cartItemRepository.existsByVariantId(variant.getId());
-                
-                if (isUsedInCart) {
-                    // Nếu đang được sử dụng, chỉ đánh dấu inactive thay vì xóa
-                    variant.setActive(false);
-                    productVariantRepository.save(variant);
-                    product.getVariants().remove(variant);
-                } else {
-                    // Nếu không được sử dụng, có thể xóa
-                    product.getVariants().remove(variant);
-                    productVariantRepository.delete(variant);
-                }
+                product.getVariants().remove(variant);
+                productVariantRepository.delete(variant);
             }
         }
     }

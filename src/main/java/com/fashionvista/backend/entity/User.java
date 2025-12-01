@@ -43,14 +43,58 @@ public class User {
 
     private String phoneNumber;
 
+    @Column(name = "avatar_url")
+    private String avatarUrl;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "gender")
+    private Gender gender;
+
+    @Column(name = "date_of_birth")
+    private java.time.LocalDate dateOfBirth;
+
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     @Builder.Default
     private UserRole role = UserRole.CUSTOMER;
 
+    @Enumerated(EnumType.STRING)
+    @Column(name = "status", nullable = false)
+    @Builder.Default
+    private AccountStatus status = AccountStatus.ACTIVE;
+
     @Column(nullable = false)
     @Builder.Default
-    private boolean active = true;
+    private boolean active = true; // Deprecated - dùng status thay thế, giữ lại để backward compatibility
+
+    @Column(name = "is_email_verified", nullable = false)
+    @Builder.Default
+    private boolean isEmailVerified = false;
+
+    @Column(name = "banned_reason", columnDefinition = "TEXT")
+    private String bannedReason;
+
+    @Column(name = "banned_at")
+    private LocalDateTime bannedAt;
+
+    @Column(name = "deleted_at")
+    private LocalDateTime deletedAt; // Soft delete
+
+    @Column(name = "loyalty_points", nullable = false)
+    @Builder.Default
+    private Integer loyaltyPoints = 0;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "tier")
+    @Builder.Default
+    private CustomerTier tier = CustomerTier.BRONZE;
+
+    @Column(name = "total_spent", nullable = false, precision = 10, scale = 2)
+    @Builder.Default
+    private java.math.BigDecimal totalSpent = java.math.BigDecimal.ZERO;
+
+    @Column(name = "last_login_at")
+    private LocalDateTime lastLoginAt;
 
     // Relationships
     @OneToMany(mappedBy = "user", fetch = FetchType.LAZY, cascade = CascadeType.ALL, orphanRemoval = true)
@@ -74,6 +118,14 @@ public class User {
     @OneToMany(mappedBy = "user", fetch = FetchType.LAZY, cascade = CascadeType.ALL, orphanRemoval = true)
     @Builder.Default
     private List<Wishlist> wishlists = new ArrayList<>();
+
+    @OneToMany(mappedBy = "user", fetch = FetchType.LAZY, cascade = CascadeType.ALL, orphanRemoval = true)
+    @Builder.Default
+    private List<LoyaltyPointHistory> loyaltyPointHistories = new ArrayList<>();
+
+    @OneToMany(mappedBy = "user", fetch = FetchType.LAZY, cascade = CascadeType.ALL, orphanRemoval = true)
+    @Builder.Default
+    private List<LoginActivity> loginActivities = new ArrayList<>();
 
     @Column(nullable = false, updatable = false)
     private LocalDateTime createdAt;

@@ -1,6 +1,7 @@
 package com.fashionvista.backend.dto;
 
 import com.fashionvista.backend.entity.PaymentMethod;
+import com.fashionvista.backend.entity.ShippingMethod;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import lombok.Data;
@@ -30,6 +31,9 @@ public class CheckoutRequest {
 
     @NotNull
     private PaymentMethod paymentMethod = PaymentMethod.COD;
+
+    @NotNull
+    private ShippingMethod shippingMethod = ShippingMethod.STANDARD;
 
 }
 

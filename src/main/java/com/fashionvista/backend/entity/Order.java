@@ -69,6 +69,11 @@ public class Order {
     private PaymentMethod paymentMethod;
 
     @Enumerated(EnumType.STRING)
+    @Column(name = "shipping_method", nullable = false)
+    @Builder.Default
+    private ShippingMethod shippingMethod = ShippingMethod.STANDARD;
+
+    @Enumerated(EnumType.STRING)
     @Column(name = "payment_status", nullable = false)
     @Builder.Default
     private PaymentStatus paymentStatus = PaymentStatus.PENDING;
