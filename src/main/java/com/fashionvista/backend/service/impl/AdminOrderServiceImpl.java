@@ -4,11 +4,13 @@ import com.fashionvista.backend.dto.AdminOrderListResponse;
 import com.fashionvista.backend.dto.OrderItemResponse;
 import com.fashionvista.backend.dto.OrderResponse;
 import com.fashionvista.backend.dto.UpdateOrderStatusRequest;
+import com.fashionvista.backend.dto.UpdateTrackingNumberRequest;
 import com.fashionvista.backend.entity.Order;
 import com.fashionvista.backend.entity.OrderStatus;
 import com.fashionvista.backend.entity.PaymentMethod;
 import com.fashionvista.backend.repository.OrderRepository;
 import com.fashionvista.backend.service.AdminOrderService;
+import com.fashionvista.backend.service.EmailService;
 import jakarta.persistence.criteria.Predicate;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -28,6 +30,7 @@ public class AdminOrderServiceImpl implements AdminOrderService {
 
     private final OrderRepository orderRepository;
     private final com.fashionvista.backend.service.UserContextService userContextService;
+    private final EmailService emailService;
 
     @Override
     @Transactional(readOnly = true)
@@ -95,7 +98,59 @@ public class AdminOrderServiceImpl implements AdminOrderService {
 
         Order saved = orderRepository.save(order);
 
-        // TODO: Gửi email thông báo khách hàng nếu request.getNotifyCustomer() == Boolean.TRUE
+        // Gửi email thông báo khách hàng nếu request.getNotifyCustomer() == Boolean.TRUE
+        if (Boolean.TRUE.equals(request.getNotifyCustomer())) {
+            try {
+                // Sử dụng trạng thái mới từ order sau khi đã cập nhật
+                emailService.sendOrderStatusUpdateEmail(saved, oldStatus.name(), saved.getStatus().name());
+            } catch (Exception e) {
+                // Log lỗi nhưng không làm gián đoạn flow
+            }
+        }
+
+        return toOrderResponse(saved);
+    }
+
+    @Override
+    @Transactional
+    public OrderResponse updateTrackingNumber(Long orderId, UpdateTrackingNumberRequest request) {
+        Order order = orderRepository.findById(orderId)
+            .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy đơn hàng."));
+
+        // Chỉ cho phép cập nhật tracking khi đơn đã chuyển sang SHIPPING hoặc DELIVERED
+        if (order.getStatus() != OrderStatus.SHIPPING && order.getStatus() != OrderStatus.DELIVERED) {
+            throw new IllegalArgumentException("Chỉ có thể cập nhật mã vận đơn khi đơn hàng đang giao hoặc đã giao.");
+        }
+
+        order.setTrackingNumber(request.getTrackingNumber());
+        Order saved = orderRepository.save(order);
+
+        // Ghi log
+        StringBuilder log = new StringBuilder();
+        log.append("[").append(LocalDateTime.now()).append("] ");
+        try {
+            var admin = userContextService.getCurrentUser();
+            log.append("Admin ").append(admin.getEmail() != null ? admin.getEmail() : admin.getId());
+        } catch (Exception e) {
+            log.append("Admin");
+        }
+        log.append(" cập nhật mã vận đơn: ").append(request.getTrackingNumber());
+
+        String existingNotes = order.getNotes() != null ? order.getNotes() : "";
+        if (!existingNotes.isBlank()) {
+            existingNotes = existingNotes + "\n";
+        }
+        order.setNotes(existingNotes + log);
+        saved = orderRepository.save(order);
+
+        // Gửi email thông báo khách hàng nếu request.getNotifyCustomer() == Boolean.TRUE
+        if (Boolean.TRUE.equals(request.getNotifyCustomer())) {
+            try {
+                emailService.sendOrderStatusUpdateEmail(saved, saved.getStatus().name(), saved.getStatus().name());
+            } catch (Exception e) {
+                // Log lỗi nhưng không làm gián đoạn flow
+            }
+        }
 
         return toOrderResponse(saved);
     }
@@ -183,6 +238,25 @@ public class AdminOrderServiceImpl implements AdminOrderService {
                 .build())
             .toList();
 
+        String trackingUrl = null;
+        if (order.getTrackingNumber() != null && !order.getTrackingNumber().isBlank()) {
+            // Generate tracking URL dựa trên shipping method
+            // GHN: https://donhang.ghn.vn/?order_code={trackingNumber}
+            // GHTK: https://khachhang.giaohangtietkiem.vn/don-hang/{trackingNumber}
+            if (order.getShippingMethod() != null) {
+                switch (order.getShippingMethod()) {
+                    case STANDARD, FAST, EXPRESS -> {
+                        // Giả định dùng GHN
+                        trackingUrl = "https://donhang.ghn.vn/?order_code=" + order.getTrackingNumber();
+                    }
+                    default -> {
+                        // Fallback: tìm kiếm Google
+                        trackingUrl = "https://www.google.com/search?q=" + order.getTrackingNumber();
+                    }
+                }
+            }
+        }
+
         return OrderResponse.builder()
             .id(order.getId())
             .orderNumber(order.getOrderNumber())
@@ -197,6 +271,8 @@ public class AdminOrderServiceImpl implements AdminOrderService {
             .total(order.getTotal())
             .createdAt(order.getCreatedAt())
             .items(itemResponses)
+            .trackingNumber(order.getTrackingNumber())
+            .trackingUrl(trackingUrl)
             .build();
     }
 }

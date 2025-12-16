@@ -2,6 +2,7 @@ package com.fashionvista.backend.controller;
 
 import com.fashionvista.backend.dto.AddressRequest;
 import com.fashionvista.backend.dto.AddressResponse;
+import com.fashionvista.backend.dto.ChangePasswordRequest;
 import com.fashionvista.backend.dto.UpdateProfileRequest;
 import com.fashionvista.backend.dto.UserProfileResponse;
 import com.fashionvista.backend.entity.Address;
@@ -12,6 +13,7 @@ import jakarta.validation.Valid;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -30,6 +32,7 @@ public class UserController {
     private final UserContextService userContextService;
     private final UserRepository userRepository;
     private final AddressRepository addressRepository;
+    private final PasswordEncoder passwordEncoder;
 
     @GetMapping
     public UserProfileResponse getProfile() {
@@ -58,6 +61,20 @@ public class UserController {
             .role(saved.getRole().name())
             .active(saved.isActive())
             .build();
+    }
+
+    @PostMapping("/change-password")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void changePassword(@RequestBody @Valid ChangePasswordRequest request) {
+        var user = userContextService.getCurrentUser();
+        if (!passwordEncoder.matches(request.getCurrentPassword(), user.getPassword())) {
+            throw new IllegalArgumentException("Mật khẩu hiện tại không đúng.");
+        }
+        if (passwordEncoder.matches(request.getNewPassword(), user.getPassword())) {
+            throw new IllegalArgumentException("Mật khẩu mới phải khác mật khẩu hiện tại.");
+        }
+        user.setPassword(passwordEncoder.encode(request.getNewPassword()));
+        userRepository.save(user);
     }
 
     @GetMapping("/addresses")

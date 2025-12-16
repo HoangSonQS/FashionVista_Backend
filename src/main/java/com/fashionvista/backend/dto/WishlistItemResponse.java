@@ -1,7 +1,6 @@
 package com.fashionvista.backend.dto;
 
 import java.math.BigDecimal;
-import java.time.LocalDateTime;
 import lombok.Builder;
 import lombok.Value;
 
@@ -13,8 +12,7 @@ public class WishlistItemResponse {
     Long productId;
     String productName;
     String productSlug;
-    String productImage;
+    String thumbnailUrl;
     BigDecimal price;
-    LocalDateTime addedAt;
+    BigDecimal compareAtPrice;
 }
-

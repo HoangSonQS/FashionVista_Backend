@@ -35,5 +35,10 @@ public class CheckoutRequest {
     @NotNull
     private ShippingMethod shippingMethod = ShippingMethod.STANDARD;
 
+    /**
+     * Mã voucher (tùy chọn)
+     */
+    private String voucherCode;
+
 }
 
