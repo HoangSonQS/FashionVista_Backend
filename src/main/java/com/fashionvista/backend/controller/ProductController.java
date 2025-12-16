@@ -2,6 +2,7 @@ package com.fashionvista.backend.controller;
 
 import com.fashionvista.backend.dto.ProductCreateRequest;
 import com.fashionvista.backend.dto.ProductDetailDto;
+import com.fashionvista.backend.dto.ProductListItemDto;
 import com.fashionvista.backend.dto.ProductListResponse;
 import com.fashionvista.backend.dto.SearchSuggestionDto;
 import com.fashionvista.backend.service.ProductService;
@@ -51,6 +52,20 @@ public class ProductController {
     @GetMapping("/search/suggestions")
     public List<SearchSuggestionDto> search(@RequestParam String keyword) {
         return productService.searchSuggestions(keyword);
+    }
+
+    @GetMapping("/products/featured")
+    public List<ProductListItemDto> getFeaturedProducts(
+        @RequestParam(defaultValue = "8") @Min(1) int limit
+    ) {
+        return productService.getFeaturedProducts(limit);
+    }
+
+    @GetMapping("/products/new-arrivals")
+    public List<ProductListItemDto> getNewArrivals(
+        @RequestParam(defaultValue = "8") @Min(1) int limit
+    ) {
+        return productService.getNewArrivals(limit);
     }
 
     @PostMapping(value = "/products", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)

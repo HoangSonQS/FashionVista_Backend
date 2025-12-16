@@ -3,6 +3,7 @@ package com.fashionvista.backend.service;
 import com.fashionvista.backend.dto.AdminOrderListResponse;
 import com.fashionvista.backend.dto.OrderResponse;
 import com.fashionvista.backend.dto.UpdateOrderStatusRequest;
+import com.fashionvista.backend.dto.UpdateTrackingNumberRequest;
 import com.fashionvista.backend.entity.OrderStatus;
 import java.util.List;
 import org.springframework.data.domain.Page;
@@ -22,5 +23,7 @@ public interface AdminOrderService {
     OrderResponse getOrderById(Long orderId);
 
     OrderResponse updateOrderStatus(Long orderId, UpdateOrderStatusRequest request);
+
+    OrderResponse updateTrackingNumber(Long orderId, UpdateTrackingNumberRequest request);
 }
 

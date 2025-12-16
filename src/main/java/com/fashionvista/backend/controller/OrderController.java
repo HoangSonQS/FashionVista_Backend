@@ -34,5 +34,10 @@ public class OrderController {
     public OrderResponse getOrder(@PathVariable String orderNumber) {
         return orderService.getOrder(orderNumber);
     }
+
+    @PostMapping("/{orderNumber}/cancel")
+    public OrderResponse cancelOrder(@PathVariable String orderNumber) {
+        return orderService.cancelMyOrder(orderNumber);
+    }
 }
 

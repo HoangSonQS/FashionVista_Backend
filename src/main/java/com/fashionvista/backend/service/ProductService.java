@@ -2,6 +2,7 @@ package com.fashionvista.backend.service;
 
 import com.fashionvista.backend.dto.ProductCreateRequest;
 import com.fashionvista.backend.dto.ProductDetailDto;
+import com.fashionvista.backend.dto.ProductListItemDto;
 import com.fashionvista.backend.dto.ProductListResponse;
 import com.fashionvista.backend.dto.ProductUpdateRequest;
 import com.fashionvista.backend.dto.SearchSuggestionDto;
@@ -42,5 +43,19 @@ public interface ProductService {
     void updateProductStatus(Long id, ProductStatus status, Boolean featured);
 
     void deleteProduct(Long id);
+
+    /**
+     * Lấy danh sách sản phẩm nổi bật (featured)
+     * @param limit số lượng sản phẩm tối đa
+     * @return danh sách sản phẩm nổi bật
+     */
+    List<ProductListItemDto> getFeaturedProducts(int limit);
+
+    /**
+     * Lấy danh sách sản phẩm mới nhất (new arrivals)
+     * @param limit số lượng sản phẩm tối đa
+     * @return danh sách sản phẩm mới nhất
+     */
+    List<ProductListItemDto> getNewArrivals(int limit);
 }
 

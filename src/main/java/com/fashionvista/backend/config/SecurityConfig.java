@@ -48,8 +48,14 @@ public class SecurityConfig {
             .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             .authorizeHttpRequests(auth -> auth
                 .requestMatchers("/api/auth/**", "/api/admin/auth/**").permitAll()
+                // Cho phép VNPay callback/redirect access không cần JWT
+                .requestMatchers("/api/payments/vnpay/**").permitAll()
+                // Cho phép public access cho product reviews (GET /api/reviews/product/{id})
+                .requestMatchers("/api/reviews/product/**").permitAll()
                 .requestMatchers("/api/products/**", "/api/search/**", "/api/categories/**", "/api/addresses/**").permitAll()
                 .requestMatchers("/api/admin/**").hasRole("ADMIN")
+                // Các endpoint review và wishlist yêu cầu authenticated
+                .requestMatchers("/api/reviews/**", "/api/me/reviews", "/api/wishlist/**").authenticated()
                 .anyRequest().authenticated()
             )
             .oauth2ResourceServer(oauth2 -> oauth2

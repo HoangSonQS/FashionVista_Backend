@@ -3,6 +3,7 @@ package com.fashionvista.backend.controller;
 import com.fashionvista.backend.dto.AdminOrderListResponse;
 import com.fashionvista.backend.dto.OrderResponse;
 import com.fashionvista.backend.dto.UpdateOrderStatusRequest;
+import com.fashionvista.backend.dto.UpdateTrackingNumberRequest;
 import com.fashionvista.backend.entity.OrderStatus;
 import com.fashionvista.backend.service.AdminOrderService;
 import jakarta.validation.Valid;
@@ -59,6 +60,14 @@ public class AdminOrderController {
         @RequestBody @Valid UpdateOrderStatusRequest request
     ) {
         return adminOrderService.updateOrderStatus(orderId, request);
+    }
+
+    @PatchMapping("/{orderId}/tracking")
+    public OrderResponse updateTrackingNumber(
+        @PathVariable Long orderId,
+        @RequestBody @Valid UpdateTrackingNumberRequest request
+    ) {
+        return adminOrderService.updateTrackingNumber(orderId, request);
     }
 }
 

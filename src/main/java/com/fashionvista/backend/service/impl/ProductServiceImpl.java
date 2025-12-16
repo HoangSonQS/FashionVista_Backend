@@ -508,6 +508,28 @@ public class ProductServiceImpl implements ProductService {
         });
     }
 
+    @Override
+    @Transactional(readOnly = true)
+    public List<ProductListItemDto> getFeaturedProducts(int limit) {
+        Specification<Product> spec = buildSpecification(null, null, null, null, null, null, ProductStatus.ACTIVE, true);
+        Pageable pageable = PageRequest.of(0, limit, Sort.by(Sort.Direction.DESC, "updatedAt"));
+        Page<Product> products = productRepository.findAll(spec, pageable);
+        return products.stream()
+            .map(this::toListItemDto)
+            .toList();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<ProductListItemDto> getNewArrivals(int limit) {
+        Specification<Product> spec = buildSpecification(null, null, null, null, null, null, ProductStatus.ACTIVE, null);
+        Pageable pageable = PageRequest.of(0, limit, Sort.by(Sort.Direction.DESC, "createdAt"));
+        Page<Product> products = productRepository.findAll(spec, pageable);
+        return products.stream()
+            .map(this::toListItemDto)
+            .toList();
+    }
+
     private String resolveThumbnail(Product product) {
         return product.getImages().stream()
             .filter(image -> image.isPrimary() && image.getUrl() != null)

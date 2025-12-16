@@ -193,10 +193,7 @@ public class AdminUserServiceImpl implements AdminUserService {
         user.setPassword(passwordEncoder.encode(tempPassword));
         userRepository.save(user);
 
-        // TODO: Gửi email nếu sendEmail = true
-        if (request.getSendEmail() != null && request.getSendEmail()) {
-            // EmailService.sendPasswordResetEmail(user.getEmail(), tempPassword);
-        }
+        // TODO: Có thể bổ sung gửi email mật khẩu tạm cho user (theo yêu cầu nghiệp vụ)
 
         return tempPassword;
     }
@@ -238,11 +235,15 @@ public class AdminUserServiceImpl implements AdminUserService {
 
     private WishlistItemResponse toWishlistItemResponse(com.fashionvista.backend.entity.Wishlist wishlist) {
         com.fashionvista.backend.entity.Product product = wishlist.getProduct();
-        String imageUrl = product.getImages() != null && !product.getImages().isEmpty()
+        String thumbnailUrl = product.getImages() != null && !product.getImages().isEmpty()
             ? product.getImages().stream()
+                .filter(image -> image.isPrimary() && image.getUrl() != null)
+                .map(image -> image.getUrl())
                 .findFirst()
-                .map(img -> img.getUrl())
-                .orElse(null)
+                .orElseGet(() -> product.getImages().stream()
+                    .map(image -> image.getUrl())
+                    .findFirst()
+                    .orElse(null))
             : null;
 
         return WishlistItemResponse.builder()
@@ -250,9 +251,9 @@ public class AdminUserServiceImpl implements AdminUserService {
             .productId(product.getId())
             .productName(product.getName())
             .productSlug(product.getSlug())
-            .productImage(imageUrl)
+            .thumbnailUrl(thumbnailUrl)
             .price(product.getPrice())
-            .addedAt(wishlist.getCreatedAt())
+            .compareAtPrice(product.getCompareAtPrice())
             .build();
     }
 
