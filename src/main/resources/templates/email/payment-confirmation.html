@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Xác nhận thanh toán</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .container {
+            background-color: #f9f9f9;
+            padding: 30px;
+            border-radius: 10px;
+        }
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        .logo {
+            font-size: 24px;
+            font-weight: bold;
+            color: #4a90e2;
+        }
+        .content {
+            background-color: white;
+            padding: 30px;
+            border-radius: 5px;
+            margin-bottom: 20px;
+        }
+        .payment-info {
+            background-color: #e8f5e9;
+            padding: 15px;
+            border-left: 4px solid #4caf50;
+            margin: 20px 0;
+        }
+        .button {
+            display: inline-block;
+            padding: 12px 30px;
+            background-color: #4a90e2;
+            color: white;
+            text-decoration: none;
+            border-radius: 5px;
+            margin: 20px 0;
+        }
+        .footer {
+            text-align: center;
+            color: #666;
+            font-size: 12px;
+            margin-top: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <div class="logo" th:text="${appName}">FashionVista</div>
+        </div>
+        <div class="content">
+            <h2>Thanh toán thành công!</h2>
+            <p>Xin chào <strong th:text="${userName}">Người dùng</strong>,</p>
+            <p>Chúng tôi đã nhận được thanh toán cho đơn hàng của bạn.</p>
+            <div class="payment-info">
+                <p><strong>Mã đơn hàng:</strong> <span th:text="${orderNumber}">ORD-20250127-0001</span></p>
+                <p><strong>Phương thức thanh toán:</strong> <span th:text="${paymentMethod}">VNPay</span></p>
+                <p><strong>Số tiền:</strong> <span th:text="${total}">500,000 ₫</span></p>
+            </div>
+            <div style="text-align: center;">
+                <a th:href="${orderLink}" class="button">Xem chi tiết đơn hàng</a>
+            </div>
+            <p>Đơn hàng của bạn sẽ được xử lý và giao hàng trong thời gian sớm nhất.</p>
+        </div>
+        <div class="footer">
+            <p>Email này được gửi tự động, vui lòng không trả lời.</p>
+            <p>&copy; 2025 <span th:text="${appName}">FashionVista</span>. Tất cả quyền được bảo lưu.</p>
+        </div>
+    </div>
+</body>
+</html>
+

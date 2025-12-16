@@ -27,5 +27,8 @@ public class OrderResponse {
     BigDecimal total;
     LocalDateTime createdAt;
     List<OrderItemResponse> items;
+    String paymentUrl;
+    String trackingNumber; // Mã vận đơn
+    String trackingUrl; // Link tracking (GHN/GHTK)
 }
 

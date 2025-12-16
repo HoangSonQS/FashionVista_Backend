@@ -8,7 +8,9 @@ import com.fashionvista.backend.entity.Cart;
 import com.fashionvista.backend.entity.CartItem;
 import com.fashionvista.backend.entity.Order;
 import com.fashionvista.backend.entity.OrderItem;
+import com.fashionvista.backend.entity.OrderStatus;
 import com.fashionvista.backend.entity.Payment;
+import com.fashionvista.backend.entity.PaymentMethod;
 import com.fashionvista.backend.entity.PaymentStatus;
 import com.fashionvista.backend.entity.ProductVariant;
 import com.fashionvista.backend.entity.ShippingMethod;
@@ -17,16 +19,22 @@ import com.fashionvista.backend.repository.OrderRepository;
 import com.fashionvista.backend.repository.PaymentRepository;
 import com.fashionvista.backend.repository.ProductVariantRepository;
 import com.fashionvista.backend.service.CartService;
+import com.fashionvista.backend.service.EmailService;
 import com.fashionvista.backend.service.OrderService;
 import com.fashionvista.backend.service.UserContextService;
+import com.fashionvista.backend.service.VnPayService;
+import com.fashionvista.backend.service.VoucherService;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.math.BigDecimal;
 import java.util.List;
+import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.context.request.RequestContextHolder;
+import org.springframework.web.context.request.ServletRequestAttributes;
 
 @Service
 @RequiredArgsConstructor
@@ -39,6 +47,9 @@ public class OrderServiceImpl implements OrderService {
     private final CartService cartService;
     private final UserContextService userContextService;
     private final ObjectMapper objectMapper;
+    private final EmailService emailService;
+    private final VoucherService voucherService;
+    private final VnPayService vnPayService;
 
     @Override
     @Transactional
@@ -76,10 +87,21 @@ public class OrderServiceImpl implements OrderService {
         CartResponse cartResponse = cartService.getMyCart();
 
         order.setSubtotal(cartResponse.getSubtotal());
+
+        // Tính phí ship trước khi áp dụng voucher (voucher hiện tại chỉ giảm trên subtotal)
         BigDecimal shippingFee = calculateShippingFee(cartResponse.getSubtotal(), request.getShippingMethod());
         order.setShippingFee(shippingFee);
-        order.setTotal(order.getSubtotal().add(shippingFee));
-        order.setDiscount(BigDecimal.ZERO);
+
+        // Áp dụng voucher (nếu có)
+        BigDecimal discount = BigDecimal.ZERO;
+        if (request.getVoucherCode() != null && !request.getVoucherCode().isBlank()) {
+            discount = voucherService.validateAndCalculateDiscount(
+                request.getVoucherCode(),
+                order.getSubtotal()
+            );
+        }
+        order.setDiscount(discount);
+        order.setTotal(order.getSubtotal().add(shippingFee).subtract(discount));
 
         Order saved = orderRepository.save(order);
 
@@ -96,7 +118,19 @@ public class OrderServiceImpl implements OrderService {
 
         cartService.clearCart();
 
-        return toOrderResponse(saved);
+        // Gửi email xác nhận đơn hàng
+        try {
+            emailService.sendOrderConfirmationEmail(saved);
+        } catch (Exception e) {
+            // Log lỗi nhưng không làm gián đoạn flow đặt hàng
+            // Email có thể gửi lại sau
+        }
+        String paymentUrl = null;
+        if (request.getPaymentMethod() == PaymentMethod.VNPAY) {
+            paymentUrl = vnPayService.createPaymentUrl(saved, resolveClientIp());
+        }
+
+        return toOrderResponse(saved, paymentUrl);
     }
 
     @Override
@@ -119,6 +153,42 @@ public class OrderServiceImpl implements OrderService {
         }
 
         return toOrderResponse(order);
+    }
+
+    @Override
+    @Transactional
+    public OrderResponse cancelMyOrder(String orderNumber) {
+        Order order = orderRepository.findByOrderNumber(orderNumber)
+            .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy đơn hàng."));
+
+        if (!order.getUser().getId().equals(userContextService.getCurrentUser().getId())) {
+            throw new IllegalArgumentException("Bạn không có quyền hủy đơn hàng này.");
+        }
+
+        if (order.getStatus() == OrderStatus.CANCELLED || order.getStatus() == OrderStatus.REFUNDED) {
+            throw new IllegalArgumentException("Đơn hàng đã được hủy hoặc hoàn tiền.");
+        }
+
+        if (!(order.getStatus() == OrderStatus.PENDING
+            || order.getStatus() == OrderStatus.CONFIRMED
+            || order.getStatus() == OrderStatus.PROCESSING)) {
+            throw new IllegalArgumentException("Chỉ có thể hủy đơn khi đang chờ duyệt/xác nhận/xử lý.");
+        }
+
+        // Trả lại tồn kho vì khi checkout đã trừ kho
+        restockItems(order);
+
+        OrderStatus oldStatus = order.getStatus();
+        order.setStatus(OrderStatus.CANCELLED);
+        Order saved = orderRepository.save(order);
+
+        try {
+            emailService.sendOrderStatusUpdateEmail(saved, oldStatus.name(), saved.getStatus().name());
+        } catch (Exception e) {
+            // không chặn hủy nếu gửi email thất bại
+        }
+
+        return toOrderResponse(saved);
     }
 
     private void validateStock(CartItem item) {
@@ -146,6 +216,19 @@ public class OrderServiceImpl implements OrderService {
         }
     }
 
+    private void restockItems(Order order) {
+        order.getItems().forEach(orderItem -> {
+            ProductVariant variant = productVariantRepository.findById(orderItem.getVariant().getId())
+                .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy biến thể sản phẩm."));
+            variant.setStock(variant.getStock() + orderItem.getQuantity());
+            try {
+                productVariantRepository.save(variant);
+            } catch (OptimisticLockingFailureException ex) {
+                throw new IllegalStateException("Sản phẩm vừa được cập nhật. Vui lòng thử lại.", ex);
+            }
+        });
+    }
+
     private OrderItem toOrderItem(Order order, CartItem item) {
         return OrderItem.builder()
             .order(order)
@@ -163,6 +246,10 @@ public class OrderServiceImpl implements OrderService {
     }
 
     private OrderResponse toOrderResponse(Order order) {
+        return toOrderResponse(order, null);
+    }
+
+    private OrderResponse toOrderResponse(Order order, String paymentUrl) {
         List<OrderItemResponse> itemResponses = order.getItems().stream()
             .map(item -> OrderItemResponse.builder()
                 .id(item.getId())
@@ -177,6 +264,23 @@ public class OrderServiceImpl implements OrderService {
                 .build())
             .toList();
 
+        String trackingUrl = null;
+        if (order.getTrackingNumber() != null && !order.getTrackingNumber().isBlank()) {
+            // Generate tracking URL dựa trên shipping method
+            if (order.getShippingMethod() != null) {
+                switch (order.getShippingMethod()) {
+                    case STANDARD, FAST, EXPRESS -> {
+                        // Giả định dùng GHN
+                        trackingUrl = "https://donhang.ghn.vn/?order_code=" + order.getTrackingNumber();
+                    }
+                    default -> {
+                        // Fallback: tìm kiếm Google
+                        trackingUrl = "https://www.google.com/search?q=" + order.getTrackingNumber();
+                    }
+                }
+            }
+        }
+
         return OrderResponse.builder()
             .id(order.getId())
             .orderNumber(order.getOrderNumber())
@@ -184,12 +288,16 @@ public class OrderServiceImpl implements OrderService {
             .paymentMethod(order.getPaymentMethod())
             .paymentStatus(order.getPaymentStatus())
             .shippingMethod(order.getShippingMethod())
+            .shippingAddress(order.getShippingAddress())
             .subtotal(order.getSubtotal())
             .shippingFee(order.getShippingFee())
             .discount(order.getDiscount())
             .total(order.getTotal())
             .createdAt(order.getCreatedAt())
             .items(itemResponses)
+            .paymentUrl(paymentUrl)
+            .trackingNumber(order.getTrackingNumber())
+            .trackingUrl(trackingUrl)
             .build();
     }
 
@@ -234,6 +342,23 @@ public class OrderServiceImpl implements OrderService {
             return objectMapper.writeValueAsString(snapshot);
         } catch (JsonProcessingException e) {
             throw new IllegalStateException("Không thể tạo thông tin địa chỉ giao hàng.", e);
+        }
+    }
+
+    private String resolveClientIp() {
+        try {
+            ServletRequestAttributes attributes = (ServletRequestAttributes) RequestContextHolder.getRequestAttributes();
+            if (attributes == null) {
+                return "127.0.0.1";
+            }
+            HttpServletRequest request = attributes.getRequest();
+            String ip = request.getHeader("X-Forwarded-For");
+            if (ip != null && !ip.isBlank()) {
+                return ip.split(",")[0].trim();
+            }
+            return request.getRemoteAddr();
+        } catch (Exception e) {
+            return "127.0.0.1";
         }
     }
 }

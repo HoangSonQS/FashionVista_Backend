@@ -90,7 +90,7 @@ public class AdminUserController {
     ) {
         String tempPassword = adminUserService.resetPassword(userId, request);
         return ResponseEntity.ok(
-            java.util.Map.of("temporaryPassword", tempPassword, "emailSent", String.valueOf(request.getSendEmail() != null && request.getSendEmail()))
+            java.util.Map.of("temporaryPassword", tempPassword, "emailSent", "false")
         );
     }
 
