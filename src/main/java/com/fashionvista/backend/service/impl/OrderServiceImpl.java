@@ -204,15 +204,15 @@ public class OrderServiceImpl implements OrderService {
     private void decreaseStock(CartItem item) {
         ProductVariant variant = productVariantRepository.findById(item.getVariant().getId())
             .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy biến thể sản phẩm."));
-        int remaining = variant.getStock() - item.getQuantity();
-        if (remaining < 0) {
+
+        int affected = productVariantRepository.decreaseStockIfEnough(
+            variant.getId(),
+            item.getQuantity()
+        );
+
+        // Nếu không có dòng nào được update nghĩa là không còn đủ stock tại thời điểm checkout
+        if (affected == 0) {
             throw new IllegalArgumentException("Sản phẩm " + variant.getSku() + " không đủ tồn kho.");
-        }
-        variant.setStock(remaining);
-        try {
-            productVariantRepository.save(variant);
-        } catch (OptimisticLockingFailureException ex) {
-            throw new IllegalStateException("Sản phẩm vừa được cập nhật. Vui lòng thử lại.", ex);
         }
     }
 
