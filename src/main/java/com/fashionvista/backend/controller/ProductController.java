@@ -68,6 +68,13 @@ public class ProductController {
         return productService.getNewArrivals(limit);
     }
 
+    @GetMapping("/products/sale")
+    public List<ProductListItemDto> getSaleProducts(
+        @RequestParam(defaultValue = "24") @Min(1) int limit
+    ) {
+        return productService.getSaleProducts(limit);
+    }
+
     @PostMapping(value = "/products", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     @PreAuthorize("hasRole('ADMIN')")
     public ProductDetailDto createProduct(

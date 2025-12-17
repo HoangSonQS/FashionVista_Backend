@@ -530,6 +530,35 @@ public class ProductServiceImpl implements ProductService {
             .toList();
     }
 
+    @Override
+    @Transactional(readOnly = true)
+    public List<ProductListItemDto> getSaleProducts(int limit) {
+        Specification<Product> spec = (root, query, cb) -> {
+            if (Product.class.equals(query.getResultType())) {
+                root.fetch("images", JoinType.LEFT);
+                query.distinct(true);
+            }
+
+            List<Predicate> predicates = new ArrayList<>();
+
+            // Chỉ lấy sản phẩm đang ACTIVE
+            predicates.add(cb.equal(root.get("status"), ProductStatus.ACTIVE));
+
+            // Điều kiện đang sale: compareAtPrice > price và compareAtPrice không null
+            predicates.add(cb.isNotNull(root.get("compareAtPrice")));
+            predicates.add(cb.greaterThan(root.get("compareAtPrice"), root.get("price")));
+
+            return cb.and(predicates.toArray(new Predicate[0]));
+        };
+
+        Pageable pageable = PageRequest.of(0, limit, Sort.by(Sort.Direction.DESC, "updatedAt"));
+        Page<Product> products = productRepository.findAll(spec, pageable);
+
+        return products.stream()
+            .map(this::toListItemDto)
+            .toList();
+    }
+
     private String resolveThumbnail(Product product) {
         return product.getImages().stream()
             .filter(image -> image.isPrimary() && image.getUrl() != null)

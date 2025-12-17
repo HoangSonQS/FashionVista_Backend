@@ -57,5 +57,13 @@ public interface ProductService {
      * @return danh sách sản phẩm mới nhất
      */
     List<ProductListItemDto> getNewArrivals(int limit);
+
+    /**
+     * Lấy danh sách sản phẩm đang giảm giá (price < compareAtPrice)
+     *
+     * @param limit số lượng sản phẩm tối đa
+     * @return danh sách sản phẩm đang giảm giá
+     */
+    List<ProductListItemDto> getSaleProducts(int limit);
 }
 
