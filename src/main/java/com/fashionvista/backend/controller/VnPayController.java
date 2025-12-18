@@ -8,6 +8,7 @@ import com.fashionvista.backend.entity.Payment;
 import com.fashionvista.backend.entity.PaymentStatus;
 import com.fashionvista.backend.repository.OrderRepository;
 import com.fashionvista.backend.repository.PaymentRepository;
+import com.fashionvista.backend.service.LoyaltyService;
 import com.fashionvista.backend.service.VnPayService;
 import java.net.URI;
 import java.util.HashMap;
@@ -37,6 +38,7 @@ public class VnPayController {
     private final OrderRepository orderRepository;
     private final PaymentRepository paymentRepository;
     private final ObjectMapper objectMapper;
+    private final LoyaltyService loyaltyService;
 
     @Value("${app.frontend.url}")
     private String frontendUrl;
@@ -46,14 +48,18 @@ public class VnPayController {
     public ResponseEntity<Void> handleReturn(@RequestParam Map<String, String> params) {
         Map<String, Object> result = processPaymentResult(params, true);
         boolean success = (boolean) result.getOrDefault("success", false);
+        String orderNumber = (String) result.get("orderNumber");
 
         String redirectUrl = frontendUrl;
-        // Thêm query đơn giản để FE có thể hiển thị toast nếu muốn, nhưng vẫn về trang chủ
-        if (success) {
-            redirectUrl = frontendUrl + "/?payment=success";
-        } else {
-            redirectUrl = frontendUrl + "/?payment=failed";
+        // Điều hướng về trang kết quả thanh toán chuyên biệt trên FE
+        String statusParam = success ? "success" : "failed";
+        StringBuilder sb = new StringBuilder(frontendUrl)
+            .append("/payment/result?status=")
+            .append(statusParam);
+        if (orderNumber != null) {
+            sb.append("&orderNumber=").append(orderNumber);
         }
+        redirectUrl = sb.toString();
 
         HttpHeaders headers = new HttpHeaders();
         headers.setLocation(URI.create(redirectUrl));
@@ -132,6 +138,11 @@ public class VnPayController {
 
         orderRepository.save(order);
         paymentRepository.save(payment);
+
+        // Nếu thanh toán VNPay thành công thì tự tích điểm theo quy tắc loyalty
+        if (success) {
+            loyaltyService.awardPointsForOrder(order);
+        }
 
         response.put("success", success);
         response.put("message", success ? "Thanh toán VNPay thành công." : "Thanh toán VNPay thất bại.");

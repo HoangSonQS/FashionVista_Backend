@@ -12,5 +12,7 @@ public interface LoyaltyPointHistoryRepository extends JpaRepository<LoyaltyPoin
     List<LoyaltyPointHistory> findByUserOrderByCreatedAtDesc(User user);
 
     Page<LoyaltyPointHistory> findByUserOrderByCreatedAtDesc(User user, Pageable pageable);
+
+    boolean existsByUserAndSource(User user, String source);
 }
 

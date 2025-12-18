@@ -2,6 +2,7 @@ package com.fashionvista.backend.service.impl;
 
 import com.fashionvista.backend.entity.Order;
 import com.fashionvista.backend.entity.User;
+import com.fashionvista.backend.repository.OrderRepository;
 import com.fashionvista.backend.service.EmailService;
 import jakarta.mail.MessagingException;
 import jakarta.mail.internet.MimeMessage;
@@ -14,7 +15,9 @@ import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.mail.javamail.MimeMessageHelper;
+import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import org.thymeleaf.context.Context;
 import org.thymeleaf.spring6.SpringTemplateEngine;
 
@@ -28,13 +31,16 @@ public class EmailServiceImpl implements EmailService {
 
     private final JavaMailSender mailSender;
     private final SpringTemplateEngine emailTemplateEngine;
+    private final OrderRepository orderRepository;
 
     public EmailServiceImpl(
         JavaMailSender mailSender,
-        @Qualifier("emailTemplateEngine") SpringTemplateEngine emailTemplateEngine
+        @Qualifier("emailTemplateEngine") SpringTemplateEngine emailTemplateEngine,
+        OrderRepository orderRepository
     ) {
         this.mailSender = mailSender;
         this.emailTemplateEngine = emailTemplateEngine;
+        this.orderRepository = orderRepository;
     }
 
     @Value("${spring.mail.username}")
@@ -113,18 +119,29 @@ public class EmailServiceImpl implements EmailService {
         }
     }
 
+    /**
+     * Gửi email cập nhật trạng thái đơn hàng dưới dạng async để
+     * không chặn luồng xử lý API admin (tránh cảm giác chậm 5-10s).
+     */
     @Override
+    @Async("emailTaskExecutor")
+    @Transactional(readOnly = true)
     public void sendOrderStatusUpdateEmail(Order order, String oldStatus, String newStatus) {
         try {
+            // Tránh dùng entity có thể còn lazy proxy ngoài transaction gốc:
+            // nạp lại Order trong transaction riêng của async thread.
+            Order hydratedOrder = orderRepository.findById(order.getId())
+                .orElse(order);
+
             Context context = new Context(Locale.forLanguageTag("vi-VN"));
-            context.setVariable("order", order);
-            context.setVariable("orderNumber", order.getOrderNumber());
-            context.setVariable("userName", order.getUser().getFullName() != null 
-                ? order.getUser().getFullName() 
-                : order.getUser().getEmail());
+            context.setVariable("order", hydratedOrder);
+            context.setVariable("orderNumber", hydratedOrder.getOrderNumber());
+            context.setVariable("userName", hydratedOrder.getUser().getFullName() != null 
+                ? hydratedOrder.getUser().getFullName() 
+                : hydratedOrder.getUser().getEmail());
             context.setVariable("oldStatus", translateOrderStatus(oldStatus));
             context.setVariable("newStatus", translateOrderStatus(newStatus));
-            context.setVariable("orderLink", frontendUrl + "/account/orders/" + order.getOrderNumber());
+            context.setVariable("orderLink", frontendUrl + "/account/orders/" + hydratedOrder.getOrderNumber());
             context.setVariable("appName", appName);
 
             String htmlContent = emailTemplateEngine.process("order-status-update", context);
@@ -137,12 +154,12 @@ public class EmailServiceImpl implements EmailService {
             } catch (UnsupportedEncodingException ex) {
                 helper.setFrom(fromEmail);
             }
-            helper.setTo(order.getUser().getEmail());
-            helper.setSubject("Cập nhật trạng thái đơn hàng #" + order.getOrderNumber());
+            helper.setTo(hydratedOrder.getUser().getEmail());
+            helper.setSubject("Cập nhật trạng thái đơn hàng #" + hydratedOrder.getOrderNumber());
             helper.setText(htmlContent, true);
 
             mailSender.send(message);
-            log.info("Đã gửi email cập nhật trạng thái đơn hàng đến: {}", order.getUser().getEmail());
+            log.info("Đã gửi email cập nhật trạng thái đơn hàng đến: {}", hydratedOrder.getUser().getEmail());
         } catch (MessagingException e) {
             log.error("Lỗi khi gửi email cập nhật trạng thái đơn hàng đến: {}", order.getUser().getEmail(), e);
         }

@@ -22,6 +22,7 @@ public class CategoryController {
                 .id(category.getId())
                 .name(category.getName())
                 .slug(category.getSlug())
+                .description(category.getDescription())
                 .build())
             .toList();
     }

@@ -11,6 +11,7 @@ import com.fashionvista.backend.entity.PaymentMethod;
 import com.fashionvista.backend.repository.OrderRepository;
 import com.fashionvista.backend.service.AdminOrderService;
 import com.fashionvista.backend.service.EmailService;
+import com.fashionvista.backend.service.LoyaltyService;
 import jakarta.persistence.criteria.Predicate;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -31,6 +32,7 @@ public class AdminOrderServiceImpl implements AdminOrderService {
     private final OrderRepository orderRepository;
     private final com.fashionvista.backend.service.UserContextService userContextService;
     private final EmailService emailService;
+    private final LoyaltyService loyaltyService;
 
     @Override
     @Transactional(readOnly = true)
@@ -97,6 +99,13 @@ public class AdminOrderServiceImpl implements AdminOrderService {
         order.setNotes(existingNotes + log);
 
         Order saved = orderRepository.save(order);
+
+        // Nếu là đơn COD và lần đầu chuyển sang DELIVERED + đã thanh toán, thì tích điểm loyalty
+        if (saved.getPaymentMethod() == PaymentMethod.COD
+            && saved.getStatus() == OrderStatus.DELIVERED
+            && oldStatus != OrderStatus.DELIVERED) {
+            loyaltyService.awardPointsForOrder(saved);
+        }
 
         // Gửi email thông báo khách hàng nếu request.getNotifyCustomer() == Boolean.TRUE
         if (Boolean.TRUE.equals(request.getNotifyCustomer())) {
