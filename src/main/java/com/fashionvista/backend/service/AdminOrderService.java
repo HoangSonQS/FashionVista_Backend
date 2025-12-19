@@ -1,6 +1,7 @@
 package com.fashionvista.backend.service;
 
 import com.fashionvista.backend.dto.AdminOrderListResponse;
+import com.fashionvista.backend.dto.BulkUpdateOrderStatusRequest;
 import com.fashionvista.backend.dto.OrderResponse;
 import com.fashionvista.backend.dto.UpdateOrderStatusRequest;
 import com.fashionvista.backend.dto.UpdateTrackingNumberRequest;
@@ -25,5 +26,7 @@ public interface AdminOrderService {
     OrderResponse updateOrderStatus(Long orderId, UpdateOrderStatusRequest request);
 
     OrderResponse updateTrackingNumber(Long orderId, UpdateTrackingNumberRequest request);
+
+    void bulkUpdateStatus(BulkUpdateOrderStatusRequest request);
 }
 

@@ -60,7 +60,7 @@ public class ProductServiceImpl implements ProductService {
         int page,
         int sizePage
     ) {
-        Specification<Product> specification = buildSpecification(categorySlug, search, size, color, minPrice, maxPrice, ProductStatus.ACTIVE, null);
+        Specification<Product> specification = buildSpecification(categorySlug, search, size, color, minPrice, maxPrice, ProductStatus.ACTIVE, null, true);
         Pageable pageable = PageRequest.of(page, sizePage, Sort.by(Sort.Direction.DESC, "createdAt"));
         Page<Product> products = productRepository.findAll(specification, pageable);
 
@@ -187,10 +187,11 @@ public class ProductServiceImpl implements ProductService {
         String search,
         ProductStatus status,
         Boolean featured,
+        Boolean visible,
         int page,
         int sizePage
     ) {
-        Specification<Product> specification = buildSpecification(categorySlug, search, null, null, null, null, status, featured);
+        Specification<Product> specification = buildSpecification(categorySlug, search, null, null, null, null, status, featured, visible);
         Pageable pageable = PageRequest.of(page, sizePage, Sort.by(Sort.Direction.DESC, "updatedAt"));
         Page<Product> products = productRepository.findAll(specification, pageable);
 
@@ -294,6 +295,76 @@ public class ProductServiceImpl implements ProductService {
 
     @Override
     @Transactional
+    public void updateProductVisibility(Long id, boolean visible) {
+        Product product = productRepository.findById(id)
+            .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy sản phẩm."));
+        
+        // Validation: không cho bật Visible nếu thiếu ảnh/giá/tồn kho
+        if (visible) {
+            if (product.getImages() == null || product.getImages().isEmpty()) {
+                throw new IllegalArgumentException("Không thể bật hiển thị: Sản phẩm chưa có ảnh đại diện.");
+            }
+            if (product.getPrice() == null || product.getPrice().compareTo(BigDecimal.ZERO) <= 0) {
+                throw new IllegalArgumentException("Không thể bật hiển thị: Sản phẩm chưa có giá hợp lệ.");
+            }
+            if (product.getVariants() == null || product.getVariants().isEmpty()) {
+                throw new IllegalArgumentException("Không thể bật hiển thị: Sản phẩm chưa có biến thể.");
+            }
+            long totalStock = product.getVariants().stream()
+                .mapToLong(v -> v.getStock() != null ? v.getStock() : 0)
+                .sum();
+            if (totalStock <= 0) {
+                throw new IllegalArgumentException("Không thể bật hiển thị: Tổng tồn kho = 0.");
+            }
+        }
+        
+        product.setVisible(visible);
+        product.setVisibleUpdatedAt(java.time.LocalDateTime.now());
+        productRepository.save(product);
+    }
+
+    @Override
+    @Transactional
+    public void updateProductVisibilityBulk(List<Long> productIds, boolean visible) {
+        if (productIds == null || productIds.isEmpty()) {
+            return;
+        }
+        
+        List<Product> products = productRepository.findAllById(productIds);
+        if (products.size() != productIds.size()) {
+            throw new IllegalArgumentException("Một số sản phẩm không tồn tại.");
+        }
+        
+        java.time.LocalDateTime now = java.time.LocalDateTime.now();
+        for (Product product : products) {
+            // Validation tương tự như updateProductVisibility
+            if (visible) {
+                if (product.getImages() == null || product.getImages().isEmpty()) {
+                    continue; // Skip products without images
+                }
+                if (product.getPrice() == null || product.getPrice().compareTo(BigDecimal.ZERO) <= 0) {
+                    continue; // Skip products without valid price
+                }
+                if (product.getVariants() == null || product.getVariants().isEmpty()) {
+                    continue; // Skip products without variants
+                }
+                long totalStock = product.getVariants().stream()
+                    .mapToLong(v -> v.getStock() != null ? v.getStock() : 0)
+                    .sum();
+                if (totalStock <= 0) {
+                    continue; // Skip products without stock
+                }
+            }
+            
+            product.setVisible(visible);
+            product.setVisibleUpdatedAt(now);
+        }
+        
+        productRepository.saveAll(products);
+    }
+
+    @Override
+    @Transactional
     public void deleteProduct(Long id) {
         Product product = productRepository.findById(id)
             .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy sản phẩm."));
@@ -310,7 +381,8 @@ public class ProductServiceImpl implements ProductService {
         Double minPrice,
         Double maxPrice,
         ProductStatus statusFilter,
-        Boolean featuredFilter
+        Boolean featuredFilter,
+        Boolean visibleFilter
     ) {
         return (root, query, cb) -> {
             if (Product.class.equals(query.getResultType())) {
@@ -358,6 +430,10 @@ public class ProductServiceImpl implements ProductService {
                 predicates.add(cb.equal(root.get("status"), statusFilter));
             }
 
+            if (visibleFilter != null) {
+                predicates.add(cb.equal(root.get("isVisible"), visibleFilter));
+            }
+
             return cb.and(predicates.toArray(new Predicate[0]));
         };
     }
@@ -372,6 +448,9 @@ public class ProductServiceImpl implements ProductService {
             .compareAtPrice(product.getCompareAtPrice())
             .status(product.getStatus().name())
             .featured(product.isFeatured())
+            .isVisible(product.isVisible())
+            .variantsCount(product.getVariants() != null ? product.getVariants().size() : 0)
+            .visibleUpdatedAt(product.getVisibleUpdatedAt())
             .thumbnailUrl(resolveThumbnail(product))
             .category(product.getCategory() != null ? product.getCategory().getName() : null)
             .build();
@@ -511,7 +590,7 @@ public class ProductServiceImpl implements ProductService {
     @Override
     @Transactional(readOnly = true)
     public List<ProductListItemDto> getFeaturedProducts(int limit) {
-        Specification<Product> spec = buildSpecification(null, null, null, null, null, null, ProductStatus.ACTIVE, true);
+        Specification<Product> spec = buildSpecification(null, null, null, null, null, null, ProductStatus.ACTIVE, true, true);
         Pageable pageable = PageRequest.of(0, limit, Sort.by(Sort.Direction.DESC, "updatedAt"));
         Page<Product> products = productRepository.findAll(spec, pageable);
         return products.stream()
@@ -522,7 +601,7 @@ public class ProductServiceImpl implements ProductService {
     @Override
     @Transactional(readOnly = true)
     public List<ProductListItemDto> getNewArrivals(int limit) {
-        Specification<Product> spec = buildSpecification(null, null, null, null, null, null, ProductStatus.ACTIVE, null);
+        Specification<Product> spec = buildSpecification(null, null, null, null, null, null, ProductStatus.ACTIVE, null, true);
         Pageable pageable = PageRequest.of(0, limit, Sort.by(Sort.Direction.DESC, "createdAt"));
         Page<Product> products = productRepository.findAll(spec, pageable);
         return products.stream()

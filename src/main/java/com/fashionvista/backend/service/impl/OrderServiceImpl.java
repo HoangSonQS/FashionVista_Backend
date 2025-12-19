@@ -1,6 +1,5 @@
 package com.fashionvista.backend.service.impl;
 
-import com.fashionvista.backend.dto.CartResponse;
 import com.fashionvista.backend.dto.CheckoutRequest;
 import com.fashionvista.backend.dto.OrderItemResponse;
 import com.fashionvista.backend.dto.OrderResponse;
@@ -30,6 +29,7 @@ import java.math.BigDecimal;
 import java.util.List;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -38,6 +38,7 @@ import org.springframework.web.context.request.ServletRequestAttributes;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class OrderServiceImpl implements OrderService {
 
     private final OrderRepository orderRepository;
@@ -73,6 +74,7 @@ public class OrderServiceImpl implements OrderService {
             .paymentStatus(PaymentStatus.PENDING)
             .shippingMethod(request.getShippingMethod())
             .shippingAddress(buildShippingSnapshot(request))
+            .billingAddress(buildShippingSnapshot(request)) // Mặc định billing = shipping nếu không có field riêng
             .subtotal(BigDecimal.ZERO)
             .shippingFee(BigDecimal.ZERO)
             .discount(BigDecimal.ZERO)
@@ -84,12 +86,14 @@ public class OrderServiceImpl implements OrderService {
             .toList();
 
         order.setItems(orderItems);
-        CartResponse cartResponse = cartService.getMyCart();
-
-        order.setSubtotal(cartResponse.getSubtotal());
+        // Tính subtotal từ cart đã load thay vì query lại
+        BigDecimal subtotal = cart.getItems().stream()
+            .map(item -> item.getPrice().multiply(BigDecimal.valueOf(item.getQuantity())))
+            .reduce(BigDecimal.ZERO, BigDecimal::add);
+        order.setSubtotal(subtotal);
 
         // Tính phí ship trước khi áp dụng voucher (voucher hiện tại chỉ giảm trên subtotal)
-        BigDecimal shippingFee = calculateShippingFee(cartResponse.getSubtotal(), request.getShippingMethod());
+        BigDecimal shippingFee = calculateShippingFee(subtotal, request.getShippingMethod());
         order.setShippingFee(shippingFee);
 
         // Áp dụng voucher (nếu có)
@@ -113,12 +117,17 @@ public class OrderServiceImpl implements OrderService {
             .build();
         paymentRepository.save(payment);
 
-        // Decrease stock
-        cart.getItems().forEach(this::decreaseStock);
+        // Với VNPay: chỉ decrease stock khi payment success (trong callback)
+        // Với COD: decrease stock ngay để reserve hàng
+        if (request.getPaymentMethod() != PaymentMethod.VNPAY) {
+            // Decrease stock cho COD và các phương thức khác
+            cart.getItems().forEach(this::decreaseStock);
+        }
+        // Note: Với VNPay, stock sẽ được decrease trong VnPayController khi payment success
 
         cartService.clearCart();
 
-        // Gửi email xác nhận đơn hàng
+        // Gửi email xác nhận đơn hàng async (không block checkout)
         try {
             emailService.sendOrderConfirmationEmail(saved);
         } catch (Exception e) {
@@ -191,6 +200,26 @@ public class OrderServiceImpl implements OrderService {
         return toOrderResponse(saved);
     }
 
+    @Override
+    @Transactional
+    public void decreaseStockForOrder(Order order) {
+        // Decrease stock cho tất cả items trong order
+        order.getItems().forEach(orderItem -> {
+            if (orderItem.getVariant() != null) {
+                int affected = productVariantRepository.decreaseStockIfEnough(
+                    orderItem.getVariant().getId(),
+                    orderItem.getQuantity()
+                );
+                if (affected == 0) {
+                    // Log warning nhưng không throw - order đã được tạo rồi
+                    // Có thể xử lý sau bằng cách thông báo admin
+                    log.warn("Không thể decrease stock cho variant {} trong order {}", 
+                        orderItem.getVariant().getId(), order.getOrderNumber());
+                }
+            }
+        });
+    }
+
     private void validateStock(CartItem item) {
         ProductVariant variant = item.getVariant();
         if (variant == null) {
@@ -202,17 +231,15 @@ public class OrderServiceImpl implements OrderService {
     }
 
     private void decreaseStock(CartItem item) {
-        ProductVariant variant = productVariantRepository.findById(item.getVariant().getId())
-            .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy biến thể sản phẩm."));
-
+        // Bỏ findById không cần thiết - query decreaseStockIfEnough đã check stock rồi
         int affected = productVariantRepository.decreaseStockIfEnough(
-            variant.getId(),
+            item.getVariant().getId(),
             item.getQuantity()
         );
 
         // Nếu không có dòng nào được update nghĩa là không còn đủ stock tại thời điểm checkout
         if (affected == 0) {
-            throw new IllegalArgumentException("Sản phẩm " + variant.getSku() + " không đủ tồn kho.");
+            throw new IllegalArgumentException("Sản phẩm " + item.getVariant().getSku() + " không đủ tồn kho.");
         }
     }
 

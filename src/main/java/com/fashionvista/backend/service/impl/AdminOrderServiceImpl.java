@@ -1,6 +1,8 @@
 package com.fashionvista.backend.service.impl;
 
 import com.fashionvista.backend.dto.AdminOrderListResponse;
+import com.fashionvista.backend.dto.BulkUpdateOrderStatusRequest;
+import com.fashionvista.backend.dto.OrderHistoryItemResponse;
 import com.fashionvista.backend.dto.OrderItemResponse;
 import com.fashionvista.backend.dto.OrderResponse;
 import com.fashionvista.backend.dto.UpdateOrderStatusRequest;
@@ -8,6 +10,9 @@ import com.fashionvista.backend.dto.UpdateTrackingNumberRequest;
 import com.fashionvista.backend.entity.Order;
 import com.fashionvista.backend.entity.OrderStatus;
 import com.fashionvista.backend.entity.PaymentMethod;
+import com.fashionvista.backend.entity.PaymentStatus;
+import com.fashionvista.backend.entity.OrderHistory;
+import com.fashionvista.backend.repository.OrderHistoryRepository;
 import com.fashionvista.backend.repository.OrderRepository;
 import com.fashionvista.backend.service.AdminOrderService;
 import com.fashionvista.backend.service.EmailService;
@@ -30,6 +35,7 @@ import org.springframework.transaction.annotation.Transactional;
 public class AdminOrderServiceImpl implements AdminOrderService {
 
     private final OrderRepository orderRepository;
+    private final OrderHistoryRepository orderHistoryRepository;
     private final com.fashionvista.backend.service.UserContextService userContextService;
     private final EmailService emailService;
     private final LoyaltyService loyaltyService;
@@ -65,7 +71,7 @@ public class AdminOrderServiceImpl implements AdminOrderService {
             .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy đơn hàng."));
 
         OrderStatus oldStatus = order.getStatus();
-        com.fashionvista.backend.entity.PaymentStatus oldPaymentStatus = order.getPaymentStatus();
+        PaymentStatus oldPaymentStatus = order.getPaymentStatus();
 
         order.setStatus(request.getStatus());
         if (request.getPaymentStatus() != null && request.getPaymentStatus() != order.getPaymentStatus()) {
@@ -99,6 +105,10 @@ public class AdminOrderServiceImpl implements AdminOrderService {
         order.setNotes(existingNotes + log);
 
         Order saved = orderRepository.save(order);
+        recordHistory(saved, "status", oldStatus.name(), saved.getStatus().name(), request.getNotes());
+        if (oldPaymentStatus != saved.getPaymentStatus()) {
+            recordHistory(saved, "paymentStatus", oldPaymentStatus.name(), saved.getPaymentStatus().name(), request.getNotes());
+        }
 
         // Nếu là đơn COD và lần đầu chuyển sang DELIVERED + đã thanh toán, thì tích điểm loyalty
         if (saved.getPaymentMethod() == PaymentMethod.COD
@@ -133,6 +143,7 @@ public class AdminOrderServiceImpl implements AdminOrderService {
 
         order.setTrackingNumber(request.getTrackingNumber());
         Order saved = orderRepository.save(order);
+        recordHistory(saved, "trackingNumber", null, request.getTrackingNumber(), request.getNotifyCustomer() != null && request.getNotifyCustomer() ? "Notify customer" : null);
 
         // Ghi log
         StringBuilder log = new StringBuilder();
@@ -162,6 +173,58 @@ public class AdminOrderServiceImpl implements AdminOrderService {
         }
 
         return toOrderResponse(saved);
+    }
+
+    @Override
+    @Transactional
+    public void bulkUpdateStatus(BulkUpdateOrderStatusRequest request) {
+        if (request.getOrderIds() == null || request.getOrderIds().isEmpty()) {
+            return;
+        }
+        List<Order> orders = orderRepository.findAllById(request.getOrderIds());
+        LocalDateTime now = LocalDateTime.now();
+        for (Order order : orders) {
+            OrderStatus oldStatus = order.getStatus();
+            PaymentStatus oldPaymentStatus = order.getPaymentStatus();
+
+            order.setStatus(request.getStatus());
+            if (request.getPaymentStatus() != null && request.getPaymentStatus() != order.getPaymentStatus()) {
+                order.setPaymentStatus(request.getPaymentStatus());
+            }
+
+            // Append log to notes (reuse existing pattern)
+            StringBuilder log = new StringBuilder();
+            log.append("[").append(now).append("] ");
+            try {
+                var admin = userContextService.getCurrentUser();
+                log.append("Admin ").append(admin.getEmail() != null ? admin.getEmail() : admin.getId());
+            } catch (Exception e) {
+                log.append("Admin");
+            }
+            log.append(" cập nhật hàng loạt. ");
+            if (oldStatus != order.getStatus()) {
+                log.append("Trạng thái: ").append(oldStatus).append(" → ").append(order.getStatus()).append(". ");
+            }
+            if (oldPaymentStatus != order.getPaymentStatus()) {
+                log.append("Thanh toán: ").append(oldPaymentStatus).append(" → ").append(order.getPaymentStatus()).append(". ");
+            }
+            if (request.getNotes() != null && !request.getNotes().isBlank()) {
+                log.append("Ghi chú thêm: ").append(request.getNotes());
+            }
+
+            String existingNotes = order.getNotes() != null ? order.getNotes() : "";
+            if (!existingNotes.isBlank()) {
+                existingNotes = existingNotes + "\n";
+            }
+            order.setNotes(existingNotes + log);
+
+            order.setUpdatedAt(now);
+            recordHistory(order, "status", oldStatus.name(), order.getStatus().name(), request.getNotes());
+            if (oldPaymentStatus != order.getPaymentStatus()) {
+                recordHistory(order, "paymentStatus", oldPaymentStatus.name(), order.getPaymentStatus().name(), request.getNotes());
+            }
+        }
+        orderRepository.saveAll(orders);
     }
 
     private Specification<Order> buildSpecification(
@@ -247,6 +310,17 @@ public class AdminOrderServiceImpl implements AdminOrderService {
                 .build())
             .toList();
 
+        List<OrderHistoryItemResponse> historyDtos = orderHistoryRepository.findByOrderIdOrderByCreatedAtAsc(order.getId()).stream()
+            .map(h -> OrderHistoryItemResponse.builder()
+                .field(h.getField())
+                .oldValue(h.getOldValue())
+                .newValue(h.getNewValue())
+                .actor(h.getActor())
+                .note(h.getNote())
+                .createdAt(h.getCreatedAt())
+                .build())
+            .toList();
+
         String trackingUrl = null;
         if (order.getTrackingNumber() != null && !order.getTrackingNumber().isBlank()) {
             // Generate tracking URL dựa trên shipping method
@@ -274,15 +348,46 @@ public class AdminOrderServiceImpl implements AdminOrderService {
             .paymentStatus(order.getPaymentStatus())
             .shippingMethod(order.getShippingMethod())
             .shippingAddress(order.getShippingAddress())
+            .billingAddress(order.getBillingAddress())
             .subtotal(order.getSubtotal())
             .shippingFee(order.getShippingFee())
             .discount(order.getDiscount())
+            .voucherDiscount(order.getDiscount())
             .total(order.getTotal())
             .createdAt(order.getCreatedAt())
             .items(itemResponses)
             .trackingNumber(order.getTrackingNumber())
             .trackingUrl(trackingUrl)
+            .customerEmail(order.getUser().getEmail())
+            .customerPhone(order.getUser().getPhoneNumber())
+            .customerGroup(order.getUser().getTier() != null ? order.getUser().getTier().name() : null)
+            .transactionId(order.getPayment() != null ? order.getPayment().getTransactionId() : null)
+            .history(historyDtos)
             .build();
+    }
+
+    private void recordHistory(Order order, String field, String oldValue, String newValue, String note) {
+        try {
+            String actor;
+            try {
+                var admin = userContextService.getCurrentUser();
+                actor = admin.getEmail() != null ? admin.getEmail() : String.valueOf(admin.getId());
+            } catch (Exception e) {
+                actor = "Admin";
+            }
+            OrderHistory history = OrderHistory.builder()
+                .order(order)
+                .field(field)
+                .oldValue(oldValue)
+                .newValue(newValue)
+                .actor(actor)
+                .note(note)
+                .createdAt(LocalDateTime.now())
+                .build();
+            orderHistoryRepository.save(history);
+        } catch (Exception e) {
+            // ignore history failures
+        }
     }
 }
 

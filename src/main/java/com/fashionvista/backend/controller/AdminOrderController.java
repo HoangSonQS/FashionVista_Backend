@@ -1,6 +1,7 @@
 package com.fashionvista.backend.controller;
 
 import com.fashionvista.backend.dto.AdminOrderListResponse;
+import com.fashionvista.backend.dto.BulkUpdateOrderStatusRequest;
 import com.fashionvista.backend.dto.OrderResponse;
 import com.fashionvista.backend.dto.UpdateOrderStatusRequest;
 import com.fashionvista.backend.dto.UpdateTrackingNumberRequest;
@@ -12,7 +13,6 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
-import org.springframework.http.HttpStatus;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
@@ -68,6 +68,13 @@ public class AdminOrderController {
         @RequestBody @Valid UpdateTrackingNumberRequest request
     ) {
         return adminOrderService.updateTrackingNumber(orderId, request);
+    }
+
+    @PatchMapping("/bulk-status")
+    public void bulkUpdateStatus(
+        @RequestBody @Valid BulkUpdateOrderStatusRequest request
+    ) {
+        adminOrderService.bulkUpdateStatus(request);
     }
 }
 

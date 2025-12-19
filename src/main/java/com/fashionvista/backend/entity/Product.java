@@ -67,6 +67,13 @@ public class Product {
     @Builder.Default
     private boolean featured = false;
 
+    @Column(name = "is_visible", nullable = false)
+    @Builder.Default
+    private boolean isVisible = true;
+
+    @Column(name = "visible_updated_at")
+    private LocalDateTime visibleUpdatedAt;
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "category_id")
     private Category category;

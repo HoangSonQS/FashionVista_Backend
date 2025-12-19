@@ -11,6 +11,8 @@ public interface ProductVariantRepository extends JpaRepository<ProductVariant, 
 
     Optional<ProductVariant> findBySku(String sku);
 
+    java.util.List<ProductVariant> findBySkuIn(java.util.List<String> skus);
+
     long countByIsActiveTrueAndStockLessThanEqual(Integer stock);
 
     /**

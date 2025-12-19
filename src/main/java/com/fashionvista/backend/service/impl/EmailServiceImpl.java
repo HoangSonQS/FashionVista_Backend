@@ -84,6 +84,8 @@ public class EmailServiceImpl implements EmailService {
     }
 
     @Override
+    @Async("emailTaskExecutor")
+    @Transactional(readOnly = true)
     public void sendOrderConfirmationEmail(Order order) {
         try {
             Context context = new Context(Locale.forLanguageTag("vi-VN"));

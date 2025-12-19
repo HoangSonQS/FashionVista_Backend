@@ -9,6 +9,7 @@ import com.fashionvista.backend.entity.PaymentStatus;
 import com.fashionvista.backend.repository.OrderRepository;
 import com.fashionvista.backend.repository.PaymentRepository;
 import com.fashionvista.backend.service.LoyaltyService;
+import com.fashionvista.backend.service.OrderService;
 import com.fashionvista.backend.service.VnPayService;
 import java.net.URI;
 import java.util.HashMap;
@@ -39,6 +40,7 @@ public class VnPayController {
     private final PaymentRepository paymentRepository;
     private final ObjectMapper objectMapper;
     private final LoyaltyService loyaltyService;
+    private final OrderService orderService;
 
     @Value("${app.frontend.url}")
     private String frontendUrl;
@@ -52,12 +54,11 @@ public class VnPayController {
 
         String redirectUrl = frontendUrl;
         // Điều hướng về trang kết quả thanh toán chuyên biệt trên FE
-        String statusParam = success ? "success" : "failed";
         StringBuilder sb = new StringBuilder(frontendUrl)
-            .append("/payment/result?status=")
-            .append(statusParam);
+            .append("/checkout/")
+            .append(success ? "success" : "failed");
         if (orderNumber != null) {
-            sb.append("&orderNumber=").append(orderNumber);
+            sb.append("?orderNumber=").append(orderNumber);
         }
         redirectUrl = sb.toString();
 
@@ -139,8 +140,11 @@ public class VnPayController {
         orderRepository.save(order);
         paymentRepository.save(payment);
 
-        // Nếu thanh toán VNPay thành công thì tự tích điểm theo quy tắc loyalty
+        // Nếu thanh toán VNPay thành công thì decrease stock và tích điểm
         if (success) {
+            // Decrease stock cho order (vì chưa decrease khi checkout)
+            orderService.decreaseStockForOrder(order);
+            // Tích điểm loyalty
             loyaltyService.awardPointsForOrder(order);
         }
 

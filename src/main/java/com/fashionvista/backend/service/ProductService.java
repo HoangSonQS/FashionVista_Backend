@@ -33,6 +33,7 @@ public interface ProductService {
         String search,
         ProductStatus status,
         Boolean featured,
+        Boolean visible,
         int page,
         int sizePage);
 
@@ -41,6 +42,10 @@ public interface ProductService {
     ProductDetailDto updateProduct(Long id, ProductUpdateRequest request, List<MultipartFile> images);
 
     void updateProductStatus(Long id, ProductStatus status, Boolean featured);
+
+    void updateProductVisibility(Long id, boolean visible);
+
+    void updateProductVisibilityBulk(List<Long> productIds, boolean visible);
 
     void deleteProduct(Long id);
 

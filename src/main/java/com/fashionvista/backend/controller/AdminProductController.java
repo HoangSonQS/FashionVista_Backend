@@ -36,10 +36,11 @@ public class AdminProductController {
         @RequestParam(required = false) String search,
         @RequestParam(required = false) ProductStatus status,
         @RequestParam(required = false) Boolean featured,
+        @RequestParam(required = false) Boolean visible,
         @RequestParam(defaultValue = "0") int page,
         @RequestParam(defaultValue = "20") int size
     ) {
-        return productService.getAdminProducts(category, search, status, featured, page, size);
+        return productService.getAdminProducts(category, search, status, featured, visible, page, size);
     }
 
     @GetMapping("/{id}")
@@ -64,12 +65,33 @@ public class AdminProductController {
         productService.updateProductStatus(id, payload.status(), payload.featured());
     }
 
+    @PatchMapping("/{id}/visibility")
+    public void updateVisibility(
+        @PathVariable Long id,
+        @RequestBody VisibilityPayload payload
+    ) {
+        productService.updateProductVisibility(id, payload.visible());
+    }
+
+    @PatchMapping("/visibility/bulk")
+    public void updateVisibilityBulk(
+        @RequestBody BulkVisibilityPayload payload
+    ) {
+        productService.updateProductVisibilityBulk(payload.productIds(), payload.visible());
+    }
+
     @DeleteMapping("/{id}")
     public void deleteProduct(@PathVariable Long id) {
         productService.deleteProduct(id);
     }
 
     public record StatusUpdatePayload(ProductStatus status, Boolean featured) {
+    }
+
+    public record VisibilityPayload(boolean visible) {
+    }
+
+    public record BulkVisibilityPayload(java.util.List<Long> productIds, boolean visible) {
     }
 }
 

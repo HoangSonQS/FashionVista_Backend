@@ -17,6 +17,9 @@ public class ProductListItemDto {
     BigDecimal compareAtPrice;
     String status;
     boolean featured;
+    Boolean isVisible;
+    Integer variantsCount;
+    java.time.LocalDateTime visibleUpdatedAt;
     String thumbnailUrl;
     String category;
 
@@ -30,6 +33,9 @@ public class ProductListItemDto {
             .compareAtPrice(product.getCompareAtPrice())
             .status(product.getStatus().name())
             .featured(product.isFeatured())
+            .isVisible(product.isVisible())
+            .variantsCount(product.getVariants() != null ? product.getVariants().size() : 0)
+            .visibleUpdatedAt(product.getVisibleUpdatedAt())
             .thumbnailUrl(product.getImages().stream()
                 .filter(image -> Boolean.TRUE.equals(image.isPrimary()))
                 .findFirst()

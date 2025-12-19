@@ -27,5 +27,7 @@ public interface OrderRepository extends JpaRepository<Order, Long>, JpaSpecific
 
     @Query("SELECT COUNT(o) FROM Order o WHERE o.status IN :statuses")
     long countByStatusIn(@Param("statuses") List<OrderStatus> statuses);
+
+    Optional<Order> findByTrackingNumber(String trackingNumber);
 }
 
