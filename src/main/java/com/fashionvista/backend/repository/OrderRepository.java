@@ -2,6 +2,8 @@ package com.fashionvista.backend.repository;
 
 import com.fashionvista.backend.entity.Order;
 import com.fashionvista.backend.entity.OrderStatus;
+import com.fashionvista.backend.entity.PaymentMethod;
+import com.fashionvista.backend.entity.PaymentStatus;
 import com.fashionvista.backend.entity.User;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -29,5 +31,16 @@ public interface OrderRepository extends JpaRepository<Order, Long>, JpaSpecific
     long countByStatusIn(@Param("statuses") List<OrderStatus> statuses);
 
     Optional<Order> findByTrackingNumber(String trackingNumber);
+
+    List<Order> findByPaymentMethodAndStatusAndPaymentStatus(
+        PaymentMethod paymentMethod,
+        OrderStatus status,
+        PaymentStatus paymentStatus
+    );
+
+    List<Order> findByPaymentMethodAndPaymentStatus(
+        PaymentMethod paymentMethod,
+        PaymentStatus paymentStatus
+    );
 }
 

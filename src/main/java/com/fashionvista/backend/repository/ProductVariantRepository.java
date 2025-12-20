@@ -35,5 +35,11 @@ public interface ProductVariantRepository extends JpaRepository<ProductVariant, 
         @Param("id") Long id,
         @Param("quantity") int quantity
     );
+
+    /**
+     * Tổng tồn kho theo productId (tính tất cả variants, kể cả inactive).
+     */
+    @Query("SELECT COALESCE(SUM(v.stock), 0) FROM ProductVariant v WHERE v.product.id = :productId")
+    Integer sumStockByProductId(@Param("productId") Long productId);
 }
 

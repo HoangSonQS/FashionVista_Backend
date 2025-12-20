@@ -13,7 +13,6 @@ import com.fashionvista.backend.entity.PaymentMethod;
 import com.fashionvista.backend.entity.PaymentStatus;
 import com.fashionvista.backend.entity.OrderHistory;
 import com.fashionvista.backend.entity.Refund;
-import com.fashionvista.backend.entity.RefundMethod;
 import com.fashionvista.backend.entity.Payment;
 import com.fashionvista.backend.repository.OrderHistoryRepository;
 import com.fashionvista.backend.repository.OrderRepository;
@@ -89,6 +88,12 @@ public class AdminOrderServiceImpl implements AdminOrderService {
 
         order.setStatus(request.getStatus());
         if (request.getPaymentStatus() != null && request.getPaymentStatus() != order.getPaymentStatus()) {
+            // Validation: Với đơn COD, chỉ cho phép đổi payment status thành PAID khi order status là DELIVERED
+            if (order.getPaymentMethod() == PaymentMethod.COD
+                && request.getPaymentStatus() == PaymentStatus.PAID
+                && request.getStatus() != OrderStatus.DELIVERED) {
+                throw new IllegalArgumentException("Đơn hàng COD chỉ có thể được đánh dấu đã thanh toán khi trạng thái đơn hàng là 'Đã giao'.");
+            }
             order.setPaymentStatus(request.getPaymentStatus());
         }
 
@@ -124,10 +129,24 @@ public class AdminOrderServiceImpl implements AdminOrderService {
             recordHistory(saved, "paymentStatus", oldPaymentStatus.name(), saved.getPaymentStatus().name(), request.getNotes());
         }
 
-        // Nếu là đơn COD và lần đầu chuyển sang DELIVERED + đã thanh toán, thì tích điểm loyalty
+        // Nếu là đơn COD và lần đầu chuyển sang DELIVERED, tự động cập nhật payment status thành PAID
         if (saved.getPaymentMethod() == PaymentMethod.COD
             && saved.getStatus() == OrderStatus.DELIVERED
-            && oldStatus != OrderStatus.DELIVERED) {
+            && oldStatus != OrderStatus.DELIVERED
+            && saved.getPaymentStatus() == PaymentStatus.PENDING) {
+            // Tự động cập nhật payment status thành PAID cho COD khi đã giao
+            saved.setPaymentStatus(PaymentStatus.PAID);
+            saved = orderRepository.save(saved);
+            
+            // Cập nhật payment entity
+            Payment payment = paymentRepository.findByOrder(saved).orElse(null);
+            if (payment != null && payment.getPaymentStatus() != PaymentStatus.PAID) {
+                payment.setPaymentStatus(PaymentStatus.PAID);
+                paymentRepository.save(payment);
+                recordHistory(saved, "paymentStatus", oldPaymentStatus.name(), PaymentStatus.PAID.name(), "Tự động cập nhật khi đơn COD đã giao");
+            }
+            
+            // Tích điểm loyalty
             loyaltyService.awardPointsForOrder(saved);
         }
 
@@ -203,6 +222,12 @@ public class AdminOrderServiceImpl implements AdminOrderService {
 
             order.setStatus(request.getStatus());
             if (request.getPaymentStatus() != null && request.getPaymentStatus() != order.getPaymentStatus()) {
+                // Validation: Với đơn COD, chỉ cho phép đổi payment status thành PAID khi order status là DELIVERED
+                if (order.getPaymentMethod() == PaymentMethod.COD
+                    && request.getPaymentStatus() == PaymentStatus.PAID
+                    && request.getStatus() != OrderStatus.DELIVERED) {
+                    throw new IllegalArgumentException("Đơn hàng COD " + order.getOrderNumber() + " chỉ có thể được đánh dấu đã thanh toán khi trạng thái đơn hàng là 'Đã giao'.");
+                }
                 order.setPaymentStatus(request.getPaymentStatus());
             }
 

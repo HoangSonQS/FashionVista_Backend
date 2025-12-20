@@ -54,11 +54,25 @@ public class VoucherServiceImpl implements VoucherService {
             discount = subtotal;
         }
 
-        // Tăng usedCount
-        voucher.setUsedCount(voucher.getUsedCount() + 1);
-        voucherRepository.save(voucher);
+        // KHÔNG tăng usedCount ở đây - chỉ validate và tính discount
+        // usedCount sẽ được tăng khi đơn hàng được tạo thành công
 
         return discount;
+    }
+
+    @Override
+    @Transactional
+    public void applyVoucher(String code) {
+        if (code == null || code.isBlank()) {
+            return;
+        }
+
+        Voucher voucher = voucherRepository.findByCodeIgnoreCase(code.trim())
+            .orElseThrow(() -> new IllegalArgumentException("Mã voucher không tồn tại."));
+
+        // Tăng usedCount khi đơn hàng được tạo thành công
+        voucher.setUsedCount(voucher.getUsedCount() + 1);
+        voucherRepository.save(voucher);
     }
 
     private BigDecimal calculateDiscountAmount(Voucher voucher, BigDecimal subtotal) {

@@ -11,5 +11,6 @@ public class CategoryResponse {
     String name;
     String slug;
     String description;
+    String image;
 }
 

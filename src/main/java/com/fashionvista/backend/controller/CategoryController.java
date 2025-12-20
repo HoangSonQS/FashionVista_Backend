@@ -18,11 +18,13 @@ public class CategoryController {
     @GetMapping
     public List<CategoryResponse> getCategories() {
         return categoryRepository.findAll().stream()
+            .filter(category -> category.isActive()) // Chỉ trả về categories đang active
             .map(category -> CategoryResponse.builder()
                 .id(category.getId())
                 .name(category.getName())
                 .slug(category.getSlug())
                 .description(category.getDescription())
+                .image(category.getImage())
                 .build())
             .toList();
     }

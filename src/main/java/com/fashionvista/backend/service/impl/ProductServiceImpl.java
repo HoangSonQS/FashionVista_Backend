@@ -387,6 +387,7 @@ public class ProductServiceImpl implements ProductService {
         return (root, query, cb) -> {
             if (Product.class.equals(query.getResultType())) {
                 root.fetch("images", JoinType.LEFT);
+                // Không fetch variants cùng lúc để tránh MultipleBagFetchException; tồn kho tính qua repository
                 query.distinct(true);
             }
             List<Predicate> predicates = new ArrayList<>();
@@ -439,6 +440,8 @@ public class ProductServiceImpl implements ProductService {
     }
 
     private ProductListItemDto toListItemDto(Product product) {
+        Integer totalStock = productVariantRepository.sumStockByProductId(product.getId());
+
         return ProductListItemDto.builder()
             .id(product.getId())
             .name(product.getName())
@@ -450,6 +453,7 @@ public class ProductServiceImpl implements ProductService {
             .featured(product.isFeatured())
             .isVisible(product.isVisible())
             .variantsCount(product.getVariants() != null ? product.getVariants().size() : 0)
+            .totalStock(totalStock)
             .visibleUpdatedAt(product.getVisibleUpdatedAt())
             .thumbnailUrl(resolveThumbnail(product))
             .category(product.getCategory() != null ? product.getCategory().getName() : null)

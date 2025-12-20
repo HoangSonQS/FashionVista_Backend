@@ -98,9 +98,11 @@ public class OrderServiceImpl implements OrderService {
 
         // Áp dụng voucher (nếu có)
         BigDecimal discount = BigDecimal.ZERO;
+        String voucherCode = null;
         if (request.getVoucherCode() != null && !request.getVoucherCode().isBlank()) {
+            voucherCode = request.getVoucherCode().trim();
             discount = voucherService.validateAndCalculateDiscount(
-                request.getVoucherCode(),
+                voucherCode,
                 order.getSubtotal()
             );
         }
@@ -108,6 +110,17 @@ public class OrderServiceImpl implements OrderService {
         order.setTotal(order.getSubtotal().add(shippingFee).subtract(discount));
 
         Order saved = orderRepository.save(order);
+
+        // Tăng usedCount của voucher sau khi đơn hàng được tạo thành công
+        if (voucherCode != null && !voucherCode.isBlank()) {
+            try {
+                voucherService.applyVoucher(voucherCode);
+            } catch (Exception e) {
+                // Log lỗi nhưng không rollback đơn hàng
+                // Voucher có thể đã bị xóa hoặc thay đổi sau khi validate
+                // Đơn hàng vẫn được tạo thành công
+            }
+        }
 
         Payment payment = Payment.builder()
             .order(saved)
