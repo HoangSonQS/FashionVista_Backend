@@ -28,5 +28,9 @@ public interface AdminOrderService {
     OrderResponse updateTrackingNumber(Long orderId, UpdateTrackingNumberRequest request);
 
     void bulkUpdateStatus(BulkUpdateOrderStatusRequest request);
+
+    com.fashionvista.backend.dto.RefundResponse createPartialRefund(Long orderId, com.fashionvista.backend.dto.PartialRefundRequest request);
+
+    List<com.fashionvista.backend.dto.RefundResponse> getRefundsByOrderId(Long orderId);
 }
 

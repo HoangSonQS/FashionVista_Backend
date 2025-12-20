@@ -3,7 +3,6 @@ package com.fashionvista.backend.controller;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fashionvista.backend.entity.Order;
-import com.fashionvista.backend.entity.OrderStatus;
 import com.fashionvista.backend.entity.Payment;
 import com.fashionvista.backend.entity.PaymentStatus;
 import com.fashionvista.backend.repository.OrderRepository;
@@ -121,9 +120,7 @@ public class VnPayController {
 
         if (success) {
             order.setPaymentStatus(PaymentStatus.PAID);
-            if (order.getStatus() == OrderStatus.PENDING) {
-                order.setStatus(OrderStatus.CONFIRMED);
-            }
+            // Giữ nguyên status PENDING để admin duyệt sau (không tự động chuyển sang CONFIRMED)
             payment.setPaymentStatus(PaymentStatus.PAID);
         } else {
             order.setPaymentStatus(PaymentStatus.FAILED);

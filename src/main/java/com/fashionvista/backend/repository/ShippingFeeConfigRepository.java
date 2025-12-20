@@ -11,3 +11,5 @@ public interface ShippingFeeConfigRepository extends JpaRepository<ShippingFeeCo
     Optional<ShippingFeeConfig> findByMethod(ShippingMethod method);
 }
 
+
+

@@ -3,6 +3,8 @@ package com.fashionvista.backend.controller;
 import com.fashionvista.backend.dto.AdminOrderListResponse;
 import com.fashionvista.backend.dto.BulkUpdateOrderStatusRequest;
 import com.fashionvista.backend.dto.OrderResponse;
+import com.fashionvista.backend.dto.PartialRefundRequest;
+import com.fashionvista.backend.dto.RefundResponse;
 import com.fashionvista.backend.dto.UpdateOrderStatusRequest;
 import com.fashionvista.backend.dto.UpdateTrackingNumberRequest;
 import com.fashionvista.backend.entity.OrderStatus;
@@ -17,10 +19,12 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import java.util.List;
 
 @RestController
 @RequestMapping("/api/admin/orders")
@@ -75,6 +79,19 @@ public class AdminOrderController {
         @RequestBody @Valid BulkUpdateOrderStatusRequest request
     ) {
         adminOrderService.bulkUpdateStatus(request);
+    }
+
+    @PostMapping("/{orderId}/refund")
+    public RefundResponse createPartialRefund(
+        @PathVariable Long orderId,
+        @RequestBody @Valid PartialRefundRequest request
+    ) {
+        return adminOrderService.createPartialRefund(orderId, request);
+    }
+
+    @GetMapping("/{orderId}/refunds")
+    public List<RefundResponse> getRefundsByOrderId(@PathVariable Long orderId) {
+        return adminOrderService.getRefundsByOrderId(orderId);
     }
 }
 

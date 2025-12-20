@@ -18,3 +18,5 @@ public class ShippingFeeConfigResponse {
     private BigDecimal freeShippingThreshold;
 }
 
+
+

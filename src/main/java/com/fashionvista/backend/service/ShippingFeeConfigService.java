@@ -11,3 +11,5 @@ public interface ShippingFeeConfigService {
     ShippingFeeConfigResponse update(Long id, ShippingFeeConfigUpdateRequest request);
 }
 
+
+
