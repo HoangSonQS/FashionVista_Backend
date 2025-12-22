@@ -14,10 +14,18 @@ import com.fashionvista.backend.entity.PaymentStatus;
 import com.fashionvista.backend.entity.OrderHistory;
 import com.fashionvista.backend.entity.Refund;
 import com.fashionvista.backend.entity.Payment;
+import com.fashionvista.backend.entity.OrderItem;
+import com.fashionvista.backend.entity.Product;
+import com.fashionvista.backend.entity.ProductVariant;
 import com.fashionvista.backend.repository.OrderHistoryRepository;
+import com.fashionvista.backend.repository.OrderItemRepository;
 import com.fashionvista.backend.repository.OrderRepository;
-import com.fashionvista.backend.repository.RefundRepository;
 import com.fashionvista.backend.repository.PaymentRepository;
+import com.fashionvista.backend.repository.ProductRepository;
+import com.fashionvista.backend.repository.ProductVariantRepository;
+import com.fashionvista.backend.repository.RefundRepository;
+import com.fashionvista.backend.dto.AddOrderItemRequest;
+import com.fashionvista.backend.dto.UpdateOrderItemRequest;
 import com.fashionvista.backend.dto.PartialRefundRequest;
 import com.fashionvista.backend.dto.RefundResponse;
 import com.fasterxml.jackson.core.type.TypeReference;
@@ -46,8 +54,11 @@ public class AdminOrderServiceImpl implements AdminOrderService {
 
     private final OrderRepository orderRepository;
     private final OrderHistoryRepository orderHistoryRepository;
+    private final OrderItemRepository orderItemRepository;
     private final RefundRepository refundRepository;
     private final PaymentRepository paymentRepository;
+    private final ProductRepository productRepository;
+    private final ProductVariantRepository productVariantRepository;
     private final ObjectMapper objectMapper;
     private final com.fashionvista.backend.service.UserContextService userContextService;
     private final EmailService emailService;
@@ -552,6 +563,229 @@ public class AdminOrderServiceImpl implements AdminOrderService {
         } catch (Exception e) {
             // ignore history failures
         }
+    }
+
+    private void recalculateOrderTotal(Order order) {
+        List<OrderItem> items = orderItemRepository.findByOrder(order);
+        BigDecimal newSubtotal = items.stream()
+            .map(OrderItem::getSubtotal)
+            .reduce(BigDecimal.ZERO, BigDecimal::add);
+        
+        order.setSubtotal(newSubtotal);
+        // Total = subtotal + shippingFee - discount
+        BigDecimal newTotal = newSubtotal
+            .add(order.getShippingFee())
+            .subtract(order.getDiscount());
+        order.setTotal(newTotal);
+    }
+
+    @Override
+    @Transactional
+    public OrderResponse updateOrderItem(Long orderId, Long itemId, UpdateOrderItemRequest request) {
+        Order order = orderRepository.findById(orderId)
+            .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy đơn hàng."));
+
+        // Validation: chỉ cho phép khi order status = PENDING hoặc CONFIRMED
+        if (order.getStatus() != OrderStatus.PENDING && order.getStatus() != OrderStatus.CONFIRMED) {
+            throw new IllegalArgumentException("Chỉ có thể chỉnh sửa sản phẩm khi đơn hàng ở trạng thái 'Chờ duyệt' hoặc 'Đã xác nhận'.");
+        }
+
+        OrderItem item = orderItemRepository.findByIdAndOrder(itemId, order)
+            .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy sản phẩm trong đơn hàng."));
+
+        Integer oldQuantity = item.getQuantity();
+        BigDecimal oldSubtotal = item.getSubtotal();
+
+        // Check stock availability
+        if (item.getVariant() != null) {
+            Integer variantStock = item.getVariant().getStock();
+            // Calculate total reserved quantity in all PENDING/CONFIRMED orders (including current order)
+            Integer totalReserved = orderItemRepository.sumQuantityByVariantIdAndStatuses(
+                item.getVariant().getId(),
+                List.of(OrderStatus.PENDING, OrderStatus.CONFIRMED),
+                null // Include all orders
+            );
+            // Available stock = total stock - (total reserved - old quantity from current order) - new quantity
+            // Simplified: available = stock - (total reserved - old quantity)
+            Integer availableStock = variantStock - (totalReserved - oldQuantity);
+            
+            if (request.getQuantity() > availableStock) {
+                throw new IllegalArgumentException(
+                    String.format("Số lượng yêu cầu (%d) vượt quá tồn kho khả dụng (%d).", 
+                        request.getQuantity(), availableStock));
+            }
+        }
+
+        // Update quantity and recalculate subtotal
+        item.setQuantity(request.getQuantity());
+        item.setSubtotal(item.getPrice().multiply(BigDecimal.valueOf(request.getQuantity())));
+        orderItemRepository.save(item);
+
+        // Recalculate order total
+        recalculateOrderTotal(order);
+        Order saved = orderRepository.save(order);
+
+        // Record history
+        recordHistory(saved, "item", 
+            String.format("Item %d: quantity=%d, subtotal=%.0f", itemId, oldQuantity, oldSubtotal.doubleValue()),
+            String.format("Item %d: quantity=%d, subtotal=%.0f", itemId, request.getQuantity(), item.getSubtotal().doubleValue()),
+            "Cập nhật số lượng sản phẩm");
+
+        return toOrderResponse(saved);
+    }
+
+    @Override
+    @Transactional
+    public OrderResponse deleteOrderItem(Long orderId, Long itemId) {
+        Order order = orderRepository.findById(orderId)
+            .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy đơn hàng."));
+
+        // Validation: chỉ cho phép khi order status = PENDING hoặc CONFIRMED
+        if (order.getStatus() != OrderStatus.PENDING && order.getStatus() != OrderStatus.CONFIRMED) {
+            throw new IllegalArgumentException("Chỉ có thể xóa sản phẩm khi đơn hàng ở trạng thái 'Chờ duyệt' hoặc 'Đã xác nhận'.");
+        }
+
+        OrderItem item = orderItemRepository.findByIdAndOrder(itemId, order)
+            .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy sản phẩm trong đơn hàng."));
+
+        // Không cho phép xóa nếu chỉ còn 1 item
+        List<OrderItem> items = orderItemRepository.findByOrder(order);
+        if (items.size() <= 1) {
+            throw new IllegalArgumentException("Không thể xóa sản phẩm cuối cùng trong đơn hàng.");
+        }
+
+        String itemInfo = String.format("Item %d: %s (quantity=%d, subtotal=%.0f)", 
+            itemId, item.getProductName(), item.getQuantity(), item.getSubtotal().doubleValue());
+
+        // Delete item
+        orderItemRepository.delete(item);
+
+        // Recalculate order total
+        recalculateOrderTotal(order);
+        Order saved = orderRepository.save(order);
+
+        // Record history
+        recordHistory(saved, "item", itemInfo, null, "Xóa sản phẩm khỏi đơn hàng");
+
+        return toOrderResponse(saved);
+    }
+
+    @Override
+    @Transactional
+    public OrderResponse addOrderItem(Long orderId, AddOrderItemRequest request) {
+        Order order = orderRepository.findById(orderId)
+            .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy đơn hàng."));
+
+        // Validation: chỉ cho phép khi order status = PENDING hoặc CONFIRMED
+        if (order.getStatus() != OrderStatus.PENDING && order.getStatus() != OrderStatus.CONFIRMED) {
+            throw new IllegalArgumentException("Chỉ có thể thêm sản phẩm khi đơn hàng ở trạng thái 'Chờ duyệt' hoặc 'Đã xác nhận'.");
+        }
+
+        Product product = productRepository.findById(request.getProductId())
+            .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy sản phẩm."));
+
+        ProductVariant variant = null;
+        if (request.getVariantId() != null) {
+            variant = productVariantRepository.findById(request.getVariantId())
+                .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy biến thể sản phẩm."));
+            
+            // Validate variant belongs to product
+            if (!variant.getProduct().getId().equals(product.getId())) {
+                throw new IllegalArgumentException("Biến thể không thuộc về sản phẩm này.");
+            }
+        }
+
+        // Determine price: use variant price if available, otherwise product price
+        BigDecimal price;
+        if (variant != null && variant.getPrice() != null) {
+            price = variant.getPrice();
+        } else {
+            price = product.getPrice();
+        }
+
+        if (price == null || price.compareTo(BigDecimal.ZERO) <= 0) {
+            throw new IllegalArgumentException("Sản phẩm không có giá hợp lệ.");
+        }
+
+        // Make variant effectively final for use in lambda
+        final ProductVariant finalVariant = variant;
+
+        // Check if item already exists (same product and variant)
+        List<OrderItem> existingItems = orderItemRepository.findByOrder(order);
+        OrderItem existingItem = existingItems.stream()
+            .filter(item -> item.getProduct().getId().equals(product.getId())
+                && ((finalVariant == null && item.getVariant() == null)
+                    || (finalVariant != null && item.getVariant() != null && item.getVariant().getId().equals(finalVariant.getId()))))
+            .findFirst()
+            .orElse(null);
+
+        // Nếu order đang giữ kho (COD, BANK_TRANSFER, MOMO, hoặc VNPay đã PAID)
+        // thì khi thêm sản phẩm mới phải trừ kho tương ứng với quantity được thêm
+        if (finalVariant != null && shouldAffectStock(order)) {
+            int affected = productVariantRepository.decreaseStockIfEnough(
+                finalVariant.getId(),
+                request.getQuantity()
+            );
+            if (affected == 0) {
+                throw new IllegalArgumentException("Sản phẩm không đủ tồn kho.");
+            }
+        }
+
+        if (existingItem != null) {
+            // Update quantity instead of creating new item
+            Integer newQuantity = existingItem.getQuantity() + request.getQuantity();
+            existingItem.setQuantity(newQuantity);
+            existingItem.setSubtotal(price.multiply(BigDecimal.valueOf(newQuantity)));
+            orderItemRepository.save(existingItem);
+        } else {
+            // Get thumbnail URL from product images
+            String thumbnailUrl = null;
+            if (product.getImages() != null && !product.getImages().isEmpty()) {
+                thumbnailUrl = product.getImages().stream()
+                    .filter(image -> image.isPrimary() && image.getUrl() != null)
+                    .map(image -> image.getUrl())
+                    .findFirst()
+                    .orElseGet(() -> product.getImages().stream()
+                        .map(image -> image.getUrl())
+                        .findFirst()
+                        .orElse(null));
+            }
+
+            // Create new order item
+            OrderItem newItem = OrderItem.builder()
+                .order(order)
+                .product(product)
+                .variant(variant)
+                .productName(product.getName())
+                .productImage(thumbnailUrl)
+                .price(price)
+                .quantity(request.getQuantity())
+                .subtotal(price.multiply(BigDecimal.valueOf(request.getQuantity())))
+                .build();
+            orderItemRepository.save(newItem);
+        }
+
+        // Recalculate order total
+        recalculateOrderTotal(order);
+        Order saved = orderRepository.save(order);
+
+        // Record history
+        String itemInfo = String.format("Thêm sản phẩm: %s (quantity=%d)", product.getName(), request.getQuantity());
+        recordHistory(saved, "item", null, itemInfo, "Thêm sản phẩm vào đơn hàng");
+
+        return toOrderResponse(saved);
+    }
+
+    /**
+     * Xác định xem đơn hàng này có đang/đã giữ kho thực tế hay chưa.
+     * - Các phương thức thanh toán khác VNPay: giữ kho ngay khi checkout
+     * - VNPay: chỉ giữ kho khi paymentStatus = PAID (decreaseStockForOrder đã chạy)
+     */
+    private boolean shouldAffectStock(Order order) {
+        if (order.getPaymentMethod() == PaymentMethod.VNPAY) {
+            return order.getPaymentStatus() == PaymentStatus.PAID;
+        }
+        return true;
     }
 }
 

@@ -1,8 +1,10 @@
 package com.fashionvista.backend.service;
 
+import com.fashionvista.backend.dto.AddOrderItemRequest;
 import com.fashionvista.backend.dto.AdminOrderListResponse;
 import com.fashionvista.backend.dto.BulkUpdateOrderStatusRequest;
 import com.fashionvista.backend.dto.OrderResponse;
+import com.fashionvista.backend.dto.UpdateOrderItemRequest;
 import com.fashionvista.backend.dto.UpdateOrderStatusRequest;
 import com.fashionvista.backend.dto.UpdateTrackingNumberRequest;
 import com.fashionvista.backend.entity.OrderStatus;
@@ -32,5 +34,12 @@ public interface AdminOrderService {
     com.fashionvista.backend.dto.RefundResponse createPartialRefund(Long orderId, com.fashionvista.backend.dto.PartialRefundRequest request);
 
     List<com.fashionvista.backend.dto.RefundResponse> getRefundsByOrderId(Long orderId);
+
+    // Order Items Management
+    OrderResponse updateOrderItem(Long orderId, Long itemId, UpdateOrderItemRequest request);
+
+    OrderResponse deleteOrderItem(Long orderId, Long itemId);
+
+    OrderResponse addOrderItem(Long orderId, AddOrderItemRequest request);
 }
 
