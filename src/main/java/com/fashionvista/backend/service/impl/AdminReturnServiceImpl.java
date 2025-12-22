@@ -13,7 +13,6 @@ import com.fashionvista.backend.repository.OrderRepository;
 import com.fashionvista.backend.repository.ProductVariantRepository;
 import com.fashionvista.backend.repository.ReturnRequestRepository;
 import com.fashionvista.backend.service.AdminReturnService;
-import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
@@ -32,7 +31,13 @@ public class AdminReturnServiceImpl implements AdminReturnService {
 
     @Override
     @Transactional(readOnly = true)
-    public Page<ReturnRequestResponse> getAll(ReturnStatus status, Pageable pageable) {
+    public Page<ReturnRequestResponse> getAll(ReturnStatus status, String search, Pageable pageable) {
+        String keyword = search != null ? search.trim() : null;
+        if (keyword != null && !keyword.isBlank()) {
+            return returnRequestRepository.searchByStatusAndKeyword(status, keyword, pageable)
+                .map(this::mapToResponse);
+        }
+
         if (status != null) {
             return returnRequestRepository.findByStatus(status, pageable).map(this::mapToResponse);
         }

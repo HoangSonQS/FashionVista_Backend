@@ -8,7 +8,7 @@ import org.springframework.data.domain.Pageable;
 
 public interface AdminReturnService {
 
-    Page<ReturnRequestResponse> getAll(ReturnStatus status, Pageable pageable);
+    Page<ReturnRequestResponse> getAll(ReturnStatus status, String search, Pageable pageable);
 
     ReturnRequestResponse updateStatus(Long id, UpdateReturnStatusRequest request);
 

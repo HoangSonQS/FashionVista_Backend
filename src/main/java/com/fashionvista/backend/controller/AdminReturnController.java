@@ -26,9 +26,10 @@ public class AdminReturnController {
     @GetMapping
     public Page<ReturnRequestResponse> getAll(
         @RequestParam(required = false) ReturnStatus status,
+        @RequestParam(required = false) String search,
         Pageable pageable
     ) {
-        return adminReturnService.getAll(status, pageable);
+        return adminReturnService.getAll(status, search, pageable);
     }
 
     @GetMapping("/by-order/{orderId}")
