@@ -7,6 +7,7 @@ import com.fashionvista.backend.dto.ProductListItemDto;
 import com.fashionvista.backend.entity.Collection;
 import com.fashionvista.backend.entity.CollectionProduct;
 import com.fashionvista.backend.entity.CollectionStatus;
+import com.fashionvista.backend.entity.Product;
 import com.fashionvista.backend.repository.CollectionProductRepository;
 import com.fashionvista.backend.repository.CollectionRepository;
 import com.fashionvista.backend.repository.ProductRepository;
@@ -192,6 +193,153 @@ public class CollectionServiceImpl implements CollectionService {
                 .product(product)
                 .position(position++)
                 .build();
+            collectionProductRepository.save(cp);
+        }
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Page<ProductListItemDto> getCollectionProducts(Long collectionId, Pageable pageable) {
+        Collection collection = collectionRepository.findById(collectionId)
+            .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy bộ sưu tập."));
+        Page<CollectionProduct> collectionProducts = collectionProductRepository
+            .findByCollectionIdOrderByPositionAscIdAsc(collectionId, pageable);
+        return collectionProducts.map(cp -> ProductListItemDto.fromEntity(cp.getProduct()));
+    }
+
+    @Override
+    @Transactional
+    public void addProductToCollection(Long collectionId, Long productId) {
+        Collection collection = collectionRepository.findById(collectionId)
+            .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy bộ sưu tập."));
+        Product product = productRepository.findById(productId)
+            .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy sản phẩm với id: " + productId));
+        
+        // Kiểm tra xem sản phẩm đã có trong collection chưa
+        if (collectionProductRepository.findByCollectionAndProduct(collection, product).isPresent()) {
+            throw new IllegalArgumentException("Sản phẩm đã có trong bộ sưu tập.");
+        }
+
+        // Tìm position lớn nhất và thêm vào cuối
+        List<CollectionProduct> existingProducts = collectionProductRepository
+            .findByCollectionOrderByPositionAscIdAsc(collection);
+        int maxPosition = existingProducts.stream()
+            .mapToInt(CollectionProduct::getPosition)
+            .max()
+            .orElse(-1);
+
+        CollectionProduct cp = CollectionProduct.builder()
+            .collection(collection)
+            .product(product)
+            .position(maxPosition + 1)
+            .build();
+        collectionProductRepository.save(cp);
+    }
+
+    @Override
+    @Transactional
+    public void removeProductFromCollection(Long collectionId, Long productId) {
+        Collection collection = collectionRepository.findById(collectionId)
+            .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy bộ sưu tập."));
+        Product product = productRepository.findById(productId)
+            .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy sản phẩm với id: " + productId));
+        
+        CollectionProduct cp = collectionProductRepository.findByCollectionAndProduct(collection, product)
+            .orElseThrow(() -> new IllegalArgumentException("Sản phẩm không có trong bộ sưu tập."));
+        
+        collectionProductRepository.delete(cp);
+        
+        // Reorder các sản phẩm còn lại
+        reorderPositions(collection);
+    }
+
+    @Override
+    @Transactional
+    public void reorderCollectionProducts(Long collectionId, java.util.List<Long> productIds) {
+        Collection collection = collectionRepository.findById(collectionId)
+            .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy bộ sưu tập."));
+        
+        if (productIds == null || productIds.isEmpty()) {
+            return;
+        }
+
+        // Validate tất cả productIds đều tồn tại trong collection
+        List<CollectionProduct> existingProducts = collectionProductRepository
+            .findByCollectionOrderByPositionAscIdAsc(collection);
+        java.util.Set<Long> existingProductIds = existingProducts.stream()
+            .map(cp -> cp.getProduct().getId())
+            .collect(java.util.stream.Collectors.toSet());
+        
+        for (Long productId : productIds) {
+            if (!existingProductIds.contains(productId)) {
+                throw new IllegalArgumentException("Sản phẩm với id " + productId + " không có trong bộ sưu tập.");
+            }
+        }
+
+        // Update positions theo thứ tự mới
+        java.util.Map<Long, CollectionProduct> productMap = existingProducts.stream()
+            .collect(java.util.stream.Collectors.toMap(cp -> cp.getProduct().getId(), cp -> cp));
+        
+        int position = 0;
+        for (Long productId : productIds) {
+            CollectionProduct cp = productMap.get(productId);
+            cp.setPosition(position++);
+            collectionProductRepository.save(cp);
+        }
+    }
+
+    @Override
+    @Transactional
+    public void bulkAddRemoveProducts(Long collectionId, java.util.List<Long> addProductIds, java.util.List<Long> removeProductIds) {
+        Collection collection = collectionRepository.findById(collectionId)
+            .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy bộ sưu tập."));
+
+        // Remove products
+        if (removeProductIds != null && !removeProductIds.isEmpty()) {
+            for (Long productId : removeProductIds) {
+                Product product = productRepository.findById(productId)
+                    .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy sản phẩm với id: " + productId));
+                collectionProductRepository.findByCollectionAndProduct(collection, product)
+                    .ifPresent(collectionProductRepository::delete);
+            }
+        }
+
+        // Add products
+        if (addProductIds != null && !addProductIds.isEmpty()) {
+            List<CollectionProduct> existingProducts = collectionProductRepository
+                .findByCollectionOrderByPositionAscIdAsc(collection);
+            int maxPosition = existingProducts.stream()
+                .mapToInt(CollectionProduct::getPosition)
+                .max()
+                .orElse(-1);
+
+            int position = maxPosition + 1;
+            for (Long productId : addProductIds) {
+                Product product = productRepository.findById(productId)
+                    .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy sản phẩm với id: " + productId));
+                
+                // Kiểm tra xem đã có chưa
+                if (collectionProductRepository.findByCollectionAndProduct(collection, product).isEmpty()) {
+                    CollectionProduct cp = CollectionProduct.builder()
+                        .collection(collection)
+                        .product(product)
+                        .position(position++)
+                        .build();
+                    collectionProductRepository.save(cp);
+                }
+            }
+        }
+
+        // Reorder sau khi add/remove
+        reorderPositions(collection);
+    }
+
+    private void reorderPositions(Collection collection) {
+        List<CollectionProduct> products = collectionProductRepository
+            .findByCollectionOrderByPositionAscIdAsc(collection);
+        int position = 0;
+        for (CollectionProduct cp : products) {
+            cp.setPosition(position++);
             collectionProductRepository.save(cp);
         }
     }

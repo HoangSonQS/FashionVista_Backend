@@ -1,8 +1,11 @@
 package com.fashionvista.backend.controller;
 
+import com.fashionvista.backend.dto.BulkCollectionProductsRequest;
 import com.fashionvista.backend.dto.CollectionDetailResponse;
 import com.fashionvista.backend.dto.CollectionRequest;
 import com.fashionvista.backend.dto.CollectionSummaryResponse;
+import com.fashionvista.backend.dto.ProductListItemDto;
+import com.fashionvista.backend.dto.ReorderCollectionProductsRequest;
 import com.fashionvista.backend.service.CollectionService;
 import jakarta.validation.Valid;
 import java.util.List;
@@ -70,6 +73,53 @@ public class AdminCollectionController {
     @PutMapping("/{id}/products")
     public void setProducts(@PathVariable Long id, @RequestBody ProductIdsPayload payload) {
         collectionService.setCollectionProducts(id, payload.productIds());
+    }
+
+    // Collection Products Management
+    @GetMapping("/{id}/products")
+    public Page<ProductListItemDto> getCollectionProducts(
+        @PathVariable Long id,
+        @RequestParam(defaultValue = "0") int page,
+        @RequestParam(defaultValue = "20") int size
+    ) {
+        Pageable pageable = PageRequest.of(page, size);
+        return collectionService.getCollectionProducts(id, pageable);
+    }
+
+    @PostMapping("/{id}/products/{productId}")
+    public void addProductToCollection(
+        @PathVariable Long id,
+        @PathVariable Long productId
+    ) {
+        collectionService.addProductToCollection(id, productId);
+    }
+
+    @DeleteMapping("/{id}/products/{productId}")
+    public void removeProductFromCollection(
+        @PathVariable Long id,
+        @PathVariable Long productId
+    ) {
+        collectionService.removeProductFromCollection(id, productId);
+    }
+
+    @PatchMapping("/{id}/products/reorder")
+    public void reorderCollectionProducts(
+        @PathVariable Long id,
+        @RequestBody @Valid ReorderCollectionProductsRequest request
+    ) {
+        collectionService.reorderCollectionProducts(id, request.getProductIds());
+    }
+
+    @PostMapping("/{id}/products/bulk")
+    public void bulkAddRemoveProducts(
+        @PathVariable Long id,
+        @RequestBody @Valid BulkCollectionProductsRequest request
+    ) {
+        collectionService.bulkAddRemoveProducts(
+            id,
+            request.getAddProductIds(),
+            request.getRemoveProductIds()
+        );
     }
 
     public record VisibilityPayload(boolean visible) {

@@ -52,7 +52,7 @@ public class SecurityConfig {
                 .requestMatchers("/api/payments/vnpay/**").permitAll()
                 // Cho phép public access cho product reviews (GET /api/reviews/product/{id})
                 .requestMatchers("/api/reviews/product/**").permitAll()
-                .requestMatchers("/api/products/**", "/api/search/**", "/api/categories/**", "/api/addresses/**").permitAll()
+                .requestMatchers("/api/products/**", "/api/search/**", "/api/categories/**", "/api/addresses/**", "/api/collections/**").permitAll()
                 .requestMatchers("/api/admin/**").hasRole("ADMIN")
                 // Các endpoint review và wishlist yêu cầu authenticated
                 .requestMatchers("/api/reviews/**", "/api/me/reviews", "/api/wishlist/**").authenticated()
