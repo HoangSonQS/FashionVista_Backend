@@ -27,6 +27,8 @@ import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
+import java.util.Map;
+import java.util.HashMap;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -63,8 +65,9 @@ public class ProductServiceImpl implements ProductService {
         Specification<Product> specification = buildSpecification(categorySlug, search, size, color, minPrice, maxPrice, ProductStatus.ACTIVE, null, true);
         Pageable pageable = PageRequest.of(page, sizePage, Sort.by(Sort.Direction.DESC, "createdAt"));
         Page<Product> products = productRepository.findAll(specification, pageable);
+        List<Product> hydrated = hydrateWithImages(products);
 
-        List<ProductListItemDto> items = products.stream()
+        List<ProductListItemDto> items = hydrated.stream()
             .map(this::toListItemDto)
             .toList();
 
@@ -102,7 +105,9 @@ public class ProductServiceImpl implements ProductService {
         };
 
         Pageable pageable = PageRequest.of(0, 10);
-        return productRepository.findAll(spec, pageable).stream()
+        Page<Product> pageResult = productRepository.findAll(spec, pageable);
+        List<Product> hydrated = hydrateWithImages(pageResult);
+        return hydrated.stream()
             .map(product -> SearchSuggestionDto.builder()
                 .slug(product.getSlug())
                 .name(product.getName())
@@ -194,8 +199,9 @@ public class ProductServiceImpl implements ProductService {
         Specification<Product> specification = buildSpecification(categorySlug, search, null, null, null, null, status, featured, visible);
         Pageable pageable = PageRequest.of(page, sizePage, Sort.by(Sort.Direction.DESC, "updatedAt"));
         Page<Product> products = productRepository.findAll(specification, pageable);
+        List<Product> hydrated = hydrateWithImages(products);
 
-        List<ProductListItemDto> items = products.stream()
+        List<ProductListItemDto> items = hydrated.stream()
             .map(this::toListItemDto)
             .toList();
 
@@ -385,11 +391,6 @@ public class ProductServiceImpl implements ProductService {
         Boolean visibleFilter
     ) {
         return (root, query, cb) -> {
-            if (Product.class.equals(query.getResultType())) {
-                root.fetch("images", JoinType.LEFT);
-                // Không fetch variants cùng lúc để tránh MultipleBagFetchException; tồn kho tính qua repository
-                query.distinct(true);
-            }
             List<Predicate> predicates = new ArrayList<>();
 
             if (categorySlug != null && !categorySlug.isBlank()) {
@@ -597,7 +598,8 @@ public class ProductServiceImpl implements ProductService {
         Specification<Product> spec = buildSpecification(null, null, null, null, null, null, ProductStatus.ACTIVE, true, true);
         Pageable pageable = PageRequest.of(0, limit, Sort.by(Sort.Direction.DESC, "updatedAt"));
         Page<Product> products = productRepository.findAll(spec, pageable);
-        return products.stream()
+        List<Product> hydrated = hydrateWithImages(products);
+        return hydrated.stream()
             .map(this::toListItemDto)
             .toList();
     }
@@ -608,7 +610,8 @@ public class ProductServiceImpl implements ProductService {
         Specification<Product> spec = buildSpecification(null, null, null, null, null, null, ProductStatus.ACTIVE, null, true);
         Pageable pageable = PageRequest.of(0, limit, Sort.by(Sort.Direction.DESC, "createdAt"));
         Page<Product> products = productRepository.findAll(spec, pageable);
-        return products.stream()
+        List<Product> hydrated = hydrateWithImages(products);
+        return hydrated.stream()
             .map(this::toListItemDto)
             .toList();
     }
@@ -617,11 +620,6 @@ public class ProductServiceImpl implements ProductService {
     @Transactional(readOnly = true)
     public List<ProductListItemDto> getSaleProducts(int limit) {
         Specification<Product> spec = (root, query, cb) -> {
-            if (Product.class.equals(query.getResultType())) {
-                root.fetch("images", JoinType.LEFT);
-                query.distinct(true);
-            }
-
             List<Predicate> predicates = new ArrayList<>();
 
             // Chỉ lấy sản phẩm đang ACTIVE
@@ -636,9 +634,29 @@ public class ProductServiceImpl implements ProductService {
 
         Pageable pageable = PageRequest.of(0, limit, Sort.by(Sort.Direction.DESC, "updatedAt"));
         Page<Product> products = productRepository.findAll(spec, pageable);
+        List<Product> hydrated = hydrateWithImages(products);
 
-        return products.stream()
+        return hydrated.stream()
             .map(this::toListItemDto)
+            .toList();
+    }
+
+    /**
+     * Hydrate products with images (thumbnail) using a second query to tránh fetch join + paging warning.
+     */
+    private List<Product> hydrateWithImages(Page<Product> page) {
+        List<Long> ids = page.getContent().stream()
+            .map(Product::getId)
+            .toList();
+        if (ids.isEmpty()) {
+            return List.of();
+        }
+        List<Product> fetched = productRepository.findAllWithImagesByIdIn(ids);
+        Map<Long, Product> byId = new HashMap<>();
+        fetched.forEach(p -> byId.put(p.getId(), p));
+        return ids.stream()
+            .map(byId::get)
+            .filter(Objects::nonNull)
             .toList();
     }
 

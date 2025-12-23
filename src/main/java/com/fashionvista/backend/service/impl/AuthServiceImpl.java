@@ -44,6 +44,10 @@ public class AuthServiceImpl implements AuthService {
             throw new IllegalArgumentException("Email đã được sử dụng.");
         }
 
+        if (userRepository.existsByPhoneNumber(request.getPhoneNumber())) {
+            throw new IllegalArgumentException("Số điện thoại đã được sử dụng.");
+        }
+
         User user = User.builder()
             .email(request.getEmail())
             .password(passwordEncoder.encode(request.getPassword()))

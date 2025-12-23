@@ -41,6 +41,7 @@ public class User {
 
     private String fullName;
 
+    @Column(unique = true, nullable = false)
     private String phoneNumber;
 
     @Column(name = "avatar_url")

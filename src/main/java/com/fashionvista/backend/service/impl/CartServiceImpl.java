@@ -26,7 +26,7 @@ public class CartServiceImpl implements CartService {
     private final UserContextService userContextService;
 
     @Override
-    @Transactional(readOnly = true)
+    @Transactional
     public CartResponse getMyCart() {
         Cart cart = getOrCreateCart();
         return toCartResponse(cart);
