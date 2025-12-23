@@ -77,7 +77,8 @@ public class EmailServiceImpl implements EmailService {
 
             mailSender.send(message);
             log.info("Đã gửi email xác thực đến: {}", user.getEmail());
-        } catch (MessagingException e) {
+        } catch (Exception e) {
+            // Bao phủ cả MessagingException lẫn các MailException (auth, kết nối...)
             log.error("Lỗi khi gửi email xác thực đến: {}", user.getEmail(), e);
             // Không throw exception để không làm gián đoạn flow đăng ký
         }
@@ -191,7 +192,8 @@ public class EmailServiceImpl implements EmailService {
 
             mailSender.send(message);
             log.info("Đã gửi email reset mật khẩu đến: {}", user.getEmail());
-        } catch (MessagingException e) {
+        } catch (Exception e) {
+            // Bao phủ MessagingException + MailException để không làm fail API
             log.error("Lỗi khi gửi email reset mật khẩu đến: {}", user.getEmail(), e);
         }
     }
