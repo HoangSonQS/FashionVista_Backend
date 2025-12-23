@@ -240,14 +240,15 @@ public class AuthServiceImpl implements AuthService {
             return; // Trả về 200 OK ở controller với thông điệp chung
         }
 
-        passwordResetTokenRepository.findByUser(user).ifPresent(passwordResetTokenRepository::delete);
+        // Giữ một bản ghi/reset token duy nhất cho mỗi user để tránh lỗi unique constraint
+        PasswordResetToken tokenEntity = passwordResetTokenRepository.findByUser(user)
+            .orElse(PasswordResetToken.builder().user(user).build());
 
         String resetToken = generateResetToken();
-        PasswordResetToken tokenEntity = PasswordResetToken.builder()
-            .token(resetToken)
-            .user(user)
-            .expiresAt(LocalDateTime.now().plusHours(1))
-            .build();
+        tokenEntity.setToken(resetToken);
+        tokenEntity.setExpiresAt(LocalDateTime.now().plusHours(1));
+        tokenEntity.setUsedAt(null); // reset trạng thái đã dùng
+
         passwordResetTokenRepository.save(tokenEntity);
 
         emailService.sendPasswordResetEmail(user, resetToken);
