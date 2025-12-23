@@ -234,8 +234,11 @@ public class AuthServiceImpl implements AuthService {
     @Override
     @Transactional
     public void forgotPassword(String email) {
-        User user = userRepository.findByEmail(email)
-            .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy tài khoản với email này."));
+        // Không tiết lộ sự tồn tại của email để tránh lộ thông tin
+        User user = userRepository.findByEmail(email).orElse(null);
+        if (user == null) {
+            return; // Trả về 200 OK ở controller với thông điệp chung
+        }
 
         passwordResetTokenRepository.findByUser(user).ifPresent(passwordResetTokenRepository::delete);
 
