@@ -71,7 +71,8 @@ public class SecurityConfig {
         CorsConfiguration configuration = new CorsConfiguration();
         configuration.setAllowedOrigins(List.of(
             "http://localhost:5173",
-            "https://fashion-vista-frontend-apd9.vercel.app"
+            "https://fashion-vista-frontend-apd9.vercel.app",
+            "https://sixthsoul.vercel.app"
         ));
         configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
         configuration.setAllowedHeaders(List.of("Authorization", "Content-Type", "Accept"));
