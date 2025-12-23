@@ -47,6 +47,7 @@ public class SecurityConfig {
             .csrf(csrf -> csrf.disable())
             .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             .authorizeHttpRequests(auth -> auth
+                .requestMatchers("/ping").permitAll()
                 .requestMatchers("/api/auth/**", "/api/admin/auth/**").permitAll()
                 // Cho phép VNPay callback/redirect access không cần JWT
                 .requestMatchers("/api/payments/vnpay/**").permitAll()
