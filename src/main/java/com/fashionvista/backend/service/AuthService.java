@@ -3,14 +3,15 @@ package com.fashionvista.backend.service;
 import com.fashionvista.backend.dto.AuthResponse;
 import com.fashionvista.backend.dto.LoginRequest;
 import com.fashionvista.backend.dto.RegisterRequest;
+import jakarta.servlet.http.HttpServletRequest;
 
 public interface AuthService {
 
     AuthResponse register(RegisterRequest request);
 
-    AuthResponse login(LoginRequest request);
+    AuthResponse login(LoginRequest request, HttpServletRequest httpRequest);
 
-    AuthResponse loginAdmin(LoginRequest request);
+    AuthResponse loginAdmin(LoginRequest request, HttpServletRequest httpRequest);
 
     /**
      * Xác thực email bằng token

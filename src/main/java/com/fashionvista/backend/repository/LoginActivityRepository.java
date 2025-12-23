@@ -33,5 +33,7 @@ public interface LoginActivityRepository extends JpaRepository<LoginActivity, Lo
           AND (:endDate IS NULL OR la.createdAt <= :endDate)
         """)
     Long countUniqueIPs(@Param("startDate") LocalDateTime startDate, @Param("endDate") LocalDateTime endDate);
+
+    void deleteByCreatedAtBefore(LocalDateTime threshold);
 }
 

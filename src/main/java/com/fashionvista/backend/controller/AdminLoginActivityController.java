@@ -3,8 +3,11 @@ package com.fashionvista.backend.controller;
 import com.fashionvista.backend.dto.AdminLoginActivityResponse;
 import com.fashionvista.backend.dto.AdminLoginActivityStatsResponse;
 import com.fashionvista.backend.service.AdminLoginActivityService;
+import com.fashionvista.backend.service.LoginActivityService;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.HashMap;
+import java.util.Map;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -13,6 +16,7 @@ import org.springframework.data.domain.Sort;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -24,6 +28,7 @@ import org.springframework.web.bind.annotation.RestController;
 public class AdminLoginActivityController {
 
     private final AdminLoginActivityService adminLoginActivityService;
+    private final LoginActivityService loginActivityService;
 
     @GetMapping
     public Page<AdminLoginActivityResponse> getHistory(
@@ -65,6 +70,21 @@ public class AdminLoginActivityController {
             : null;
 
         return ResponseEntity.ok(adminLoginActivityService.getStats(start, end));
+    }
+
+    @GetMapping("/logging-enabled")
+    public ResponseEntity<Map<String, Object>> getLoggingEnabled() {
+        Map<String, Object> body = new HashMap<>();
+        body.put("enabled", loginActivityService.isLoginActivityEnabled());
+        return ResponseEntity.ok(body);
+    }
+
+    @PutMapping("/logging-enabled")
+    public ResponseEntity<Map<String, Object>> updateLoggingEnabled(@RequestParam boolean enabled) {
+        loginActivityService.setLoginActivityEnabled(enabled);
+        Map<String, Object> body = new HashMap<>();
+        body.put("enabled", loginActivityService.isLoginActivityEnabled());
+        return ResponseEntity.ok(body);
     }
 }
 

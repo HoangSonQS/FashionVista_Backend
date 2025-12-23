@@ -14,6 +14,8 @@ import com.fashionvista.backend.repository.UserRepository;
 import com.fashionvista.backend.service.AuthService;
 import com.fashionvista.backend.service.EmailService;
 import com.fashionvista.backend.service.JwtService;
+import com.fashionvista.backend.service.LoginActivityService;
+import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -33,6 +35,7 @@ public class AuthServiceImpl implements AuthService {
     private final EmailService emailService;
     private final EmailVerificationTokenRepository emailVerificationTokenRepository;
     private final PasswordResetTokenRepository passwordResetTokenRepository;
+    private final LoginActivityService loginActivityService;
 
     @Override
     @Transactional
@@ -87,30 +90,78 @@ public class AuthServiceImpl implements AuthService {
     }
 
     @Override
-    @Transactional(readOnly = true)
-    public AuthResponse login(LoginRequest request) {
-        User user = authenticate(request);
+    @Transactional
+    public AuthResponse login(LoginRequest request, HttpServletRequest httpRequest) {
+        String identifier = request.getIdentifier().trim();
+        User user = findByIdentifier(identifier);
+
+        if (user == null) {
+            // User không tồn tại - không thể ghi lại vì entity yêu cầu user không null
+            // Nhưng vẫn throw exception để bảo mật (không tiết lộ user có tồn tại hay không)
+            throw new IllegalArgumentException("Email/số điện thoại hoặc mật khẩu không đúng.");
+        }
+
+        if (!passwordEncoder.matches(request.getPassword(), user.getPassword())) {
+            // Password sai - ghi lại đăng nhập thất bại
+            if (httpRequest != null) {
+                loginActivityService.recordFailedLogin(
+                    user,
+                    "Mật khẩu không đúng.",
+                    httpRequest
+                );
+            }
+            throw new IllegalArgumentException("Email/số điện thoại hoặc mật khẩu không đúng.");
+        }
+
+        // Ghi lại đăng nhập thành công
+        if (httpRequest != null) {
+            loginActivityService.recordSuccessfulLogin(user, httpRequest);
+        }
+
         return buildAuthResponse(user);
     }
 
     @Override
-    @Transactional(readOnly = true)
-    public AuthResponse loginAdmin(LoginRequest request) {
-        User user = authenticate(request);
-        if (user.getRole() != UserRole.ADMIN) {
-            throw new IllegalArgumentException("Tài khoản không có quyền quản trị.");
-        }
-        return buildAuthResponse(user);
-    }
-
-    private User authenticate(LoginRequest request) {
+    @Transactional
+    public AuthResponse loginAdmin(LoginRequest request, HttpServletRequest httpRequest) {
         String identifier = request.getIdentifier().trim();
         User user = findByIdentifier(identifier);
 
-        if (user == null || !passwordEncoder.matches(request.getPassword(), user.getPassword())) {
+        if (user == null) {
+            // User không tồn tại - không thể ghi lại vì entity yêu cầu user không null
             throw new IllegalArgumentException("Email/số điện thoại hoặc mật khẩu không đúng.");
         }
-        return user;
+
+        if (!passwordEncoder.matches(request.getPassword(), user.getPassword())) {
+            // Password sai - ghi lại đăng nhập thất bại
+            if (httpRequest != null) {
+                loginActivityService.recordFailedLogin(
+                    user,
+                    "Mật khẩu không đúng.",
+                    httpRequest
+                );
+            }
+            throw new IllegalArgumentException("Email/số điện thoại hoặc mật khẩu không đúng.");
+        }
+
+        if (user.getRole() != UserRole.ADMIN) {
+            // Ghi lại đăng nhập thất bại (không có quyền admin)
+            if (httpRequest != null) {
+                loginActivityService.recordFailedLogin(
+                    user,
+                    "Tài khoản không có quyền quản trị.",
+                    httpRequest
+                );
+            }
+            throw new IllegalArgumentException("Tài khoản không có quyền quản trị.");
+        }
+
+        // Ghi lại đăng nhập thành công
+        if (httpRequest != null) {
+            loginActivityService.recordSuccessfulLogin(user, httpRequest);
+        }
+
+        return buildAuthResponse(user);
     }
 
     private User findByIdentifier(String identifier) {
