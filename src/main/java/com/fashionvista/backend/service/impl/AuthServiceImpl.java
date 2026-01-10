@@ -40,13 +40,18 @@ public class AuthServiceImpl implements AuthService {
 
     private String generateAndSaveRefreshToken(User user) {
         String token = jwtService.generateRefreshToken();
-        com.fashionvista.backend.entity.RefreshToken refreshToken = com.fashionvista.backend.entity.RefreshToken
-                .builder()
-                .user(user)
-                .token(token)
-                .expiryDate(java.time.Instant.now().plus(jwtService.getRefreshTokenDurationSeconds(),
-                        java.time.temporal.ChronoUnit.SECONDS))
-                .build();
+
+        // Tìm token cũ hoặc tạo mới nếu chưa có
+        com.fashionvista.backend.entity.RefreshToken refreshToken = refreshTokenRepository.findByUser(user)
+                .orElse(com.fashionvista.backend.entity.RefreshToken.builder()
+                        .user(user)
+                        .build());
+
+        // Cập nhật thông tin token mới
+        refreshToken.setToken(token);
+        refreshToken.setExpiryDate(java.time.Instant.now().plus(jwtService.getRefreshTokenDurationSeconds(),
+                java.time.temporal.ChronoUnit.SECONDS));
+
         refreshTokenRepository.save(refreshToken);
         return token;
     }
@@ -61,7 +66,8 @@ public class AuthServiceImpl implements AuthService {
     @Override
     @Transactional
     public AuthResponse register(RegisterRequest request) {
-        if (userRepository.existsByEmail(request.getEmail())) {
+        String email = request.getEmail().toLowerCase().trim();
+        if (userRepository.existsByEmail(email)) {
             throw new IllegalArgumentException("Email đã được sử dụng.");
         }
 
@@ -70,7 +76,7 @@ public class AuthServiceImpl implements AuthService {
         }
 
         User user = User.builder()
-                .email(request.getEmail())
+                .email(email)
                 .password(passwordEncoder.encode(request.getPassword()))
                 .fullName(request.getFullName())
                 .phoneNumber(request.getPhoneNumber())
@@ -166,7 +172,7 @@ public class AuthServiceImpl implements AuthService {
             throw new IllegalArgumentException("Email/số điện thoại hoặc mật khẩu không đúng.");
         }
 
-        if (user.getRole() != UserRole.ADMIN) {
+        if (user.getRole() != UserRole.ADMIN && user.getRole() != UserRole.STAFF) {
             // Ghi lại đăng nhập thất bại (không có quyền admin)
             if (httpRequest != null) {
                 loginActivityService.recordFailedLogin(

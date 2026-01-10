@@ -27,31 +27,35 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
 
     @Override
     protected ResponseEntity<Object> handleMethodArgumentNotValid(
-        MethodArgumentNotValidException ex,
-        HttpHeaders headers,
-        HttpStatusCode status,
-        WebRequest request
-    ) {
+            MethodArgumentNotValidException ex,
+            HttpHeaders headers,
+            HttpStatusCode status,
+            WebRequest request) {
         Map<String, Object> details = new HashMap<>();
         for (FieldError error : ex.getBindingResult().getFieldErrors()) {
             details.put(error.getField(), error.getDefaultMessage());
         }
-        ErrorResponse body = ErrorResponse.withDetails(HttpStatus.BAD_REQUEST, "Dữ liệu không hợp lệ.", extractPath(request.getDescription(false)), details);
+        ErrorResponse body = ErrorResponse.withDetails(HttpStatus.BAD_REQUEST, "Dữ liệu không hợp lệ.",
+                extractPath(request.getDescription(false)), details);
         return ResponseEntity.badRequest().body(body);
     }
 
     @ExceptionHandler(ConstraintViolationException.class)
-    public ResponseEntity<ErrorResponse> handleConstraintViolation(ConstraintViolationException ex, HttpServletRequest request) {
+    public ResponseEntity<ErrorResponse> handleConstraintViolation(ConstraintViolationException ex,
+            HttpServletRequest request) {
         log.warn("Constraint violation at {}: {}", request.getRequestURI(), ex.getMessage(), ex);
         Map<String, Object> details = new HashMap<>();
-        ex.getConstraintViolations().forEach(violation -> details.put(violation.getPropertyPath().toString(), violation.getMessage()));
-        ErrorResponse body = ErrorResponse.withDetails(HttpStatus.BAD_REQUEST, "Tham số không hợp lệ.", request.getRequestURI(), details);
+        ex.getConstraintViolations()
+                .forEach(violation -> details.put(violation.getPropertyPath().toString(), violation.getMessage()));
+        ErrorResponse body = ErrorResponse.withDetails(HttpStatus.BAD_REQUEST, "Tham số không hợp lệ.",
+                request.getRequestURI(), details);
         return ResponseEntity.badRequest().body(body);
     }
 
     @ExceptionHandler(IllegalArgumentException.class)
-    public ResponseEntity<ErrorResponse> handleIllegalArgument(IllegalArgumentException ex, HttpServletRequest request) {
-        log.warn("Illegal argument at {}: {}", request.getRequestURI(), ex.getMessage(), ex);
+    public ResponseEntity<ErrorResponse> handleIllegalArgument(IllegalArgumentException ex,
+            HttpServletRequest request) {
+        log.warn("Illegal argument at {}: {}", request.getRequestURI(), ex.getMessage());
         ErrorResponse body = ErrorResponse.of(HttpStatus.BAD_REQUEST, ex.getMessage(), request.getRequestURI());
         return ResponseEntity.badRequest().body(body);
     }
@@ -64,30 +68,35 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
     }
 
     @ExceptionHandler(DataIntegrityViolationException.class)
-    public ResponseEntity<ErrorResponse> handleDataIntegrity(DataIntegrityViolationException ex, HttpServletRequest request) {
+    public ResponseEntity<ErrorResponse> handleDataIntegrity(DataIntegrityViolationException ex,
+            HttpServletRequest request) {
         log.error("Data integrity violation at {}: {}", request.getRequestURI(), ex.getMessage(), ex);
-        ErrorResponse body = ErrorResponse.of(HttpStatus.CONFLICT, "Dữ liệu không hợp lệ hoặc đã tồn tại.", request.getRequestURI());
+        ErrorResponse body = ErrorResponse.of(HttpStatus.CONFLICT, "Dữ liệu không hợp lệ hoặc đã tồn tại.",
+                request.getRequestURI());
         return ResponseEntity.status(HttpStatus.CONFLICT).body(body);
     }
 
     @ExceptionHandler(AccessDeniedException.class)
     public ResponseEntity<ErrorResponse> handleAccessDenied(AccessDeniedException ex, HttpServletRequest request) {
         log.warn("Access denied at {}: {}", request.getRequestURI(), ex.getMessage(), ex);
-        ErrorResponse body = ErrorResponse.of(HttpStatus.FORBIDDEN, "Bạn không có quyền thực hiện hành động này.", request.getRequestURI());
+        ErrorResponse body = ErrorResponse.of(HttpStatus.FORBIDDEN, "Bạn không có quyền thực hiện hành động này.",
+                request.getRequestURI());
         return ResponseEntity.status(HttpStatus.FORBIDDEN).body(body);
     }
 
     @ExceptionHandler(AuthenticationException.class)
     public ResponseEntity<ErrorResponse> handleAuthentication(AuthenticationException ex, HttpServletRequest request) {
         log.warn("Authentication failed at {}: {}", request.getRequestURI(), ex.getMessage(), ex);
-        ErrorResponse body = ErrorResponse.of(HttpStatus.UNAUTHORIZED, "Vui lòng đăng nhập để tiếp tục.", request.getRequestURI());
+        ErrorResponse body = ErrorResponse.of(HttpStatus.UNAUTHORIZED, "Vui lòng đăng nhập để tiếp tục.",
+                request.getRequestURI());
         return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(body);
     }
 
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ErrorResponse> handleGeneric(Exception ex, HttpServletRequest request) {
         log.error("Unhandled exception at {}: {}", request.getRequestURI(), ex.getMessage(), ex);
-        ErrorResponse body = ErrorResponse.of(HttpStatus.INTERNAL_SERVER_ERROR, "Đã xảy ra lỗi không mong muốn.", request.getRequestURI());
+        ErrorResponse body = ErrorResponse.of(HttpStatus.INTERNAL_SERVER_ERROR, "Đã xảy ra lỗi không mong muốn.",
+                request.getRequestURI());
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(body);
     }
 
@@ -98,5 +107,3 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
         return description.replace("uri=", "");
     }
 }
-
-
