@@ -1,13 +1,15 @@
 package com.fashionvista.backend.dto;
 
 import lombok.AllArgsConstructor;
+import lombok.Builder;
 import lombok.Data;
+import lombok.NoArgsConstructor;
 
 @Data
 @AllArgsConstructor
-public class AuthResponse {
-
-    private String token;
+@NoArgsConstructor
+@Builder
+public class RefreshTokenResponse {
+    private String accessToken;
     private String refreshToken;
-    private UserResponse user;
 }

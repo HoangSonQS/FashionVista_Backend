@@ -34,7 +34,8 @@ public class AuthController {
     }
 
     @PostMapping("/login")
-    public ResponseEntity<AuthResponse> login(@Valid @RequestBody LoginRequest request, HttpServletRequest httpRequest) {
+    public ResponseEntity<AuthResponse> login(@Valid @RequestBody LoginRequest request,
+            HttpServletRequest httpRequest) {
         AuthResponse response = authService.login(request, httpRequest);
         return ResponseEntity.ok(response);
     }
@@ -75,6 +76,19 @@ public class AuthController {
         response.put("message", "Đặt lại mật khẩu thành công.");
         return ResponseEntity.ok(response);
     }
+
+    @PostMapping("/refresh-token")
+    public ResponseEntity<com.fashionvista.backend.dto.RefreshTokenResponse> refreshToken(
+            @Valid @RequestBody com.fashionvista.backend.dto.RefreshTokenRequest request) {
+        com.fashionvista.backend.dto.RefreshTokenResponse response = authService.refreshToken(request);
+        return ResponseEntity.ok(response);
+    }
+
+    @PostMapping("/logout")
+    public ResponseEntity<Map<String, String>> logout(@RequestParam(required = false) String refreshToken) {
+        authService.logout(refreshToken);
+        Map<String, String> response = new HashMap<>();
+        response.put("message", "Đăng xuất thành công.");
+        return ResponseEntity.ok(response);
+    }
 }
-
-
