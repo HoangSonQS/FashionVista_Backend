@@ -8,5 +8,7 @@ public interface AdminCartService {
 
     Page<AdminCartListResponse> getAdminCarts(String search, Boolean isAbandoned, Pageable pageable);
 
+    com.fashionvista.backend.dto.CartResponse getCartDetail(Long id);
+
     void sendCartReminder(Long cartId);
 }

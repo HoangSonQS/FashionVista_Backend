@@ -27,6 +27,11 @@ public class AdminCartController {
         return ResponseEntity.ok(adminCartService.getAdminCarts(search, isAbandoned, pageable));
     }
 
+    @GetMapping("/{id}")
+    public ResponseEntity<com.fashionvista.backend.dto.CartResponse> getCartDetail(@PathVariable Long id) {
+        return ResponseEntity.ok(adminCartService.getCartDetail(id));
+    }
+
     @PostMapping("/{id}/remind")
     public ResponseEntity<Void> sendReminder(@PathVariable Long id) {
         adminCartService.sendCartReminder(id);

@@ -35,17 +35,19 @@ public class EmailServiceImpl implements EmailService {
     private final JavaMailSender mailSender;
     private final SpringTemplateEngine emailTemplateEngine;
     private final OrderRepository orderRepository;
+    private final com.fashionvista.backend.repository.CartRepository cartRepository;
     private final BrevoMailSender brevoMailSender;
 
     public EmailServiceImpl(
-        JavaMailSender mailSender,
-        @Qualifier("emailTemplateEngine") SpringTemplateEngine emailTemplateEngine,
-        OrderRepository orderRepository,
-        BrevoMailSender brevoMailSender
-    ) {
+            JavaMailSender mailSender,
+            @Qualifier("emailTemplateEngine") SpringTemplateEngine emailTemplateEngine,
+            OrderRepository orderRepository,
+            com.fashionvista.backend.repository.CartRepository cartRepository,
+            BrevoMailSender brevoMailSender) {
         this.mailSender = mailSender;
         this.emailTemplateEngine = emailTemplateEngine;
         this.orderRepository = orderRepository;
+        this.cartRepository = cartRepository;
         this.brevoMailSender = brevoMailSender;
     }
 
@@ -100,7 +102,8 @@ public class EmailServiceImpl implements EmailService {
     public void sendOrderConfirmationEmail(Order order) {
         if (brevoMailSender.isConfigured()) {
             String html = buildOrderConfirmationHtml(order);
-            brevoMailSender.sendEmail(order.getUser().getEmail(), order.getUser().getFullName(), "Xác nhận đơn hàng #" + order.getOrderNumber(), html);
+            brevoMailSender.sendEmail(order.getUser().getEmail(), order.getUser().getFullName(),
+                    "Xác nhận đơn hàng #" + order.getOrderNumber(), html);
             return;
         }
         if (!isSmtpConfigured()) {
@@ -139,9 +142,10 @@ public class EmailServiceImpl implements EmailService {
     public void sendOrderStatusUpdateEmail(Order order, String oldStatus, String newStatus) {
         if (brevoMailSender.isConfigured()) {
             Order hydratedOrder = orderRepository.findById(order.getId())
-                .orElse(order);
+                    .orElse(order);
             String html = buildOrderStatusUpdateHtml(hydratedOrder, oldStatus, newStatus);
-            brevoMailSender.sendEmail(hydratedOrder.getUser().getEmail(), hydratedOrder.getUser().getFullName(), "Cập nhật trạng thái đơn hàng #" + hydratedOrder.getOrderNumber(), html);
+            brevoMailSender.sendEmail(hydratedOrder.getUser().getEmail(), hydratedOrder.getUser().getFullName(),
+                    "Cập nhật trạng thái đơn hàng #" + hydratedOrder.getOrderNumber(), html);
             return;
         }
         if (!isSmtpConfigured()) {
@@ -152,7 +156,7 @@ public class EmailServiceImpl implements EmailService {
             // Tránh dùng entity có thể còn lazy proxy ngoài transaction gốc:
             // nạp lại Order trong transaction riêng của async thread.
             Order hydratedOrder = orderRepository.findById(order.getId())
-                .orElse(order);
+                    .orElse(order);
 
             String htmlContent = buildOrderStatusUpdateHtml(hydratedOrder, oldStatus, newStatus);
 
@@ -213,7 +217,8 @@ public class EmailServiceImpl implements EmailService {
     public void sendPaymentConfirmationEmail(Order order) {
         if (brevoMailSender.isConfigured()) {
             String html = buildPaymentConfirmationHtml(order);
-            brevoMailSender.sendEmail(order.getUser().getEmail(), order.getUser().getFullName(), "Xác nhận thanh toán đơn hàng #" + order.getOrderNumber(), html);
+            brevoMailSender.sendEmail(order.getUser().getEmail(), order.getUser().getFullName(),
+                    "Xác nhận thanh toán đơn hàng #" + order.getOrderNumber(), html);
             return;
         }
         if (!isSmtpConfigured()) {
@@ -309,10 +314,10 @@ public class EmailServiceImpl implements EmailService {
         context.setVariable("order", order);
         context.setVariable("orderNumber", order.getOrderNumber());
         context.setVariable("userName", order.getUser().getFullName() != null
-            ? order.getUser().getFullName()
-            : order.getUser().getEmail());
+                ? order.getUser().getFullName()
+                : order.getUser().getEmail());
         context.setVariable("orderDate", order.getCreatedAt().format(
-            DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm", Locale.forLanguageTag("vi-VN"))));
+                DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm", Locale.forLanguageTag("vi-VN"))));
         context.setVariable("total", formatCurrency(order.getTotal()));
         context.setVariable("orderLink", frontendUrl + "/account/orders/" + order.getOrderNumber());
         context.setVariable("appName", appName);
@@ -324,8 +329,8 @@ public class EmailServiceImpl implements EmailService {
         context.setVariable("order", hydratedOrder);
         context.setVariable("orderNumber", hydratedOrder.getOrderNumber());
         context.setVariable("userName", hydratedOrder.getUser().getFullName() != null
-            ? hydratedOrder.getUser().getFullName()
-            : hydratedOrder.getUser().getEmail());
+                ? hydratedOrder.getUser().getFullName()
+                : hydratedOrder.getUser().getEmail());
         context.setVariable("oldStatus", translateOrderStatus(oldStatus));
         context.setVariable("newStatus", translateOrderStatus(newStatus));
         context.setVariable("orderLink", frontendUrl + "/account/orders/" + hydratedOrder.getOrderNumber());
@@ -346,13 +351,70 @@ public class EmailServiceImpl implements EmailService {
         context.setVariable("order", order);
         context.setVariable("orderNumber", order.getOrderNumber());
         context.setVariable("userName", order.getUser().getFullName() != null
-            ? order.getUser().getFullName()
-            : order.getUser().getEmail());
+                ? order.getUser().getFullName()
+                : order.getUser().getEmail());
         context.setVariable("paymentMethod", translatePaymentMethod(order.getPaymentMethod().name()));
         context.setVariable("total", formatCurrency(order.getTotal()));
         context.setVariable("orderLink", frontendUrl + "/account/orders/" + order.getOrderNumber());
         context.setVariable("appName", appName);
         return emailTemplateEngine.process("payment-confirmation", context);
     }
-}
 
+    @Override
+    @Async("emailTaskExecutor")
+    @Transactional(readOnly = true)
+    public void sendAbandonedCartEmail(String email, com.fashionvista.backend.entity.Cart cart) {
+        // Hydrate cart in this thread's transaction to avoid
+        // LazyInitializationException/NPE
+        com.fashionvista.backend.entity.Cart hydratedCart = cartRepository.findById(cart.getId())
+                .orElse(cart);
+
+        if (brevoMailSender.isConfigured()) {
+            String html = buildAbandonedCartHtml(hydratedCart);
+            brevoMailSender.sendEmail(email, hydratedCart.getUser().getFullName(), "Bạn đã quên gì đó? " + appName,
+                    html);
+            return;
+        }
+        if (!isSmtpConfigured()) {
+            log.warn("Bỏ qua gửi email nhắc nhở giỏ hàng vì SMTP chưa cấu hình.");
+            return;
+        }
+        try {
+            String htmlContent = buildAbandonedCartHtml(hydratedCart);
+
+            MimeMessage message = mailSender.createMimeMessage();
+            MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
+
+            try {
+                helper.setFrom(fromEmail, appName);
+            } catch (UnsupportedEncodingException ex) {
+                helper.setFrom(fromEmail);
+            }
+            helper.setTo(email);
+            helper.setSubject("Bạn đã quên gì đó? " + appName);
+            helper.setText(htmlContent, true);
+
+            mailSender.send(message);
+            log.info("Đã gửi email nhắc nhở giỏ hàng đến: {}", email);
+        } catch (Exception e) {
+            log.error("Lỗi khi gửi email nhắc nhở giỏ hàng đến: {}", email, e);
+        }
+    }
+
+    private String buildAbandonedCartHtml(com.fashionvista.backend.entity.Cart cart) {
+        Context context = new Context(Locale.forLanguageTag("vi-VN"));
+        context.setVariable("userName",
+                cart.getUser().getFullName() != null ? cart.getUser().getFullName() : cart.getUser().getEmail());
+
+        int itemsCount = cart.getItems().stream().mapToInt(com.fashionvista.backend.entity.CartItem::getQuantity).sum();
+        BigDecimal totalValue = cart.getItems().stream()
+                .map(item -> item.getPrice().multiply(BigDecimal.valueOf(item.getQuantity())))
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+        context.setVariable("itemsCount", itemsCount);
+        context.setVariable("totalValue", formatCurrency(totalValue));
+        context.setVariable("cartLink", frontendUrl + "/cart");
+        context.setVariable("appName", appName);
+        return emailTemplateEngine.process("abandoned-cart", context);
+    }
+}

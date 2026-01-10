@@ -29,7 +29,7 @@ public class AdminCartServiceImpl implements AdminCartService {
 
     private final CartRepository cartRepository;
     // EmailService might be needed for reminders
-    // private final EmailService emailService;
+    private final EmailService emailService;
 
     @Override
     @Transactional(readOnly = true)
@@ -84,8 +84,53 @@ public class AdminCartServiceImpl implements AdminCartService {
         }
 
         log.info("Sending abandoned cart reminder to user: {}", cart.getUser().getEmail());
-        // TODO: Implement actual email sending via EmailService
-        // emailService.sendAbandonedCartEmail(cart.getUser().getEmail(), cart);
+        emailService.sendAbandonedCartEmail(cart.getUser().getEmail(), cart);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public com.fashionvista.backend.dto.CartResponse getCartDetail(Long id) {
+        Cart cart = cartRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Cart not found"));
+        return toCartResponse(cart);
+    }
+
+    private com.fashionvista.backend.dto.CartResponse toCartResponse(Cart cart) {
+        List<com.fashionvista.backend.dto.CartItemResponse> items = cart.getItems().stream()
+                .map(item -> com.fashionvista.backend.dto.CartItemResponse.builder()
+                        .id(item.getId())
+                        .productId(item.getProduct().getId())
+                        .variantId(item.getVariant() != null ? item.getVariant().getId() : null)
+                        .productName(item.getProduct().getName())
+                        .productSlug(item.getProduct().getSlug())
+                        .thumbnailUrl(item.getProduct().getImages().stream()
+                                .findFirst()
+                                .map(image -> image.getUrl())
+                                .orElse(null))
+                        .size(item.getVariant() != null ? item.getVariant().getSize() : null)
+                        .color(item.getVariant() != null ? item.getVariant().getColor() : null)
+                        .quantity(item.getQuantity())
+                        .unitPrice(item.getPrice())
+                        .subtotal(item.getPrice().multiply(BigDecimal.valueOf(item.getQuantity())))
+                        .build())
+                .toList();
+
+        BigDecimal subtotal = items.stream()
+                .map(com.fashionvista.backend.dto.CartItemResponse::getSubtotal)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+        // Admin likely wants to see raw cart data, but let's keep logic consistent
+        BigDecimal shippingFee = subtotal.compareTo(BigDecimal.valueOf(2000000)) >= 0
+                ? BigDecimal.ZERO
+                : BigDecimal.valueOf(30000);
+
+        return com.fashionvista.backend.dto.CartResponse.builder()
+                .id(cart.getId())
+                .items(items)
+                .subtotal(subtotal)
+                .shippingFee(shippingFee)
+                .total(subtotal.add(shippingFee))
+                .build();
     }
 
     private AdminCartListResponse toAdminCartListResponse(Cart cart) {
