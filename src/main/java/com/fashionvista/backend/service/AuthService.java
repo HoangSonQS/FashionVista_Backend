@@ -1,8 +1,6 @@
 package com.fashionvista.backend.service;
 
-import com.fashionvista.backend.dto.AuthResponse;
-import com.fashionvista.backend.dto.LoginRequest;
-import com.fashionvista.backend.dto.RegisterRequest;
+import com.fashionvista.backend.dto.*;
 import jakarta.servlet.http.HttpServletRequest;
 
 public interface AuthService {
@@ -49,13 +47,13 @@ public interface AuthService {
      * @param request RefreshTokenRequest chứa refresh token cũ
      * @return RefreshTokenResponse chứa bộ đôi token mới
      */
-    com.fashionvista.backend.dto.RefreshTokenResponse refreshToken(
-            com.fashionvista.backend.dto.RefreshTokenRequest request);
+    RefreshTokenResponse refreshToken(
+            RefreshTokenRequest request);
 
     /**
      * Đăng xuất người dùng (xóa Refresh Token)
      * 
-     * @param request HttpServletRequest để lấy thông tin user hiện tại (nếu cần)
+     * @param refreshToken HttpServletRequest để lấy thông tin user hiện tại (nếu cần)
      *                hoặc token
      */
     void logout(String refreshToken);

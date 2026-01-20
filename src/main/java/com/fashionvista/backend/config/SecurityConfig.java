@@ -43,25 +43,25 @@ public class SecurityConfig {
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         http
-            .cors(cors -> cors.configurationSource(corsConfigurationSource()))
-            .csrf(csrf -> csrf.disable())
-            .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
-            .authorizeHttpRequests(auth -> auth
-                .requestMatchers("/ping").permitAll()
-                .requestMatchers("/api/auth/**", "/api/admin/auth/**").permitAll()
-                // Cho phép VNPay callback/redirect access không cần JWT
-                .requestMatchers("/api/payments/vnpay/**").permitAll()
-                // Cho phép public access cho product reviews (GET /api/reviews/product/{id})
-                .requestMatchers("/api/reviews/product/**").permitAll()
-                .requestMatchers("/api/products/**", "/api/search/**", "/api/categories/**", "/api/addresses/**", "/api/collections/**").permitAll()
-                .requestMatchers("/api/admin/**").hasRole("ADMIN")
-                // Các endpoint review và wishlist yêu cầu authenticated
-                .requestMatchers("/api/reviews/**", "/api/me/reviews", "/api/wishlist/**").authenticated()
-                .anyRequest().authenticated()
-            )
-            .oauth2ResourceServer(oauth2 -> oauth2
-                .jwt(jwt -> jwt.jwtAuthenticationConverter(jwtAuthenticationConverter()))
-            );
+                .cors(cors -> cors.configurationSource(corsConfigurationSource()))
+                .csrf(csrf -> csrf.disable())
+                .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+                .authorizeHttpRequests(auth -> auth
+                        .requestMatchers("/ping").permitAll()
+                        .requestMatchers("/api/auth/**", "/api/admin/auth/**").permitAll()
+                        // Cho phép VNPay callback/redirect access không cần JWT
+                        .requestMatchers("/api/payments/vnpay/**").permitAll()
+                        // Cho phép public access cho product reviews (GET /api/reviews/product/{id})
+                        .requestMatchers("/api/reviews/product/**").permitAll()
+                        .requestMatchers("/api/products/**", "/api/search/**", "/api/categories/**",
+                                "/api/addresses/**", "/api/collections/**")
+                        .permitAll()
+                        .requestMatchers("/api/admin/**").hasRole("ADMIN")
+                        // Các endpoint review và wishlist yêu cầu authenticated
+                        .requestMatchers("/api/reviews/**", "/api/me/reviews", "/api/wishlist/**").authenticated()
+                        .anyRequest().authenticated())
+                .oauth2ResourceServer(oauth2 -> oauth2
+                        .jwt(jwt -> jwt.jwtAuthenticationConverter(jwtAuthenticationConverter())));
 
         return http.build();
     }
@@ -70,11 +70,10 @@ public class SecurityConfig {
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
         configuration.setAllowedOrigins(List.of(
-            "http://localhost:5173",
-            "https://fashion-vista-frontend-apd9.vercel.app",
-            "https://sixthsoul.vercel.app",
-                "https://sixthsoul.com"
-        ));
+                "http://localhost:5173",
+                "https://fashion-vista-frontend-apd9.vercel.app",
+                "https://sixthsoul.vercel.app",
+                "https://sixthsoul.com"));
         configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
         configuration.setAllowedHeaders(List.of("Authorization", "Content-Type", "Accept"));
         configuration.setAllowCredentials(false);
@@ -84,5 +83,3 @@ public class SecurityConfig {
         return source;
     }
 }
-
-
