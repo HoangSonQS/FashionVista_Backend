@@ -71,7 +71,14 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
     public ResponseEntity<ErrorResponse> handleDataIntegrity(DataIntegrityViolationException ex,
             HttpServletRequest request) {
         log.error("Data integrity violation at {}: {}", request.getRequestURI(), ex.getMessage(), ex);
-        ErrorResponse body = ErrorResponse.of(HttpStatus.CONFLICT, "Dữ liệu không hợp lệ hoặc đã tồn tại.",
+        String message = "Dữ liệu không hợp lệ hoặc đã tồn tại.";
+        String detail = ex.getMostSpecificCause().getMessage();
+        if (detail != null) {
+            if (detail.contains("uk_") || detail.contains("unique constraint")) {
+                message = "Dữ liệu (Email, Số điện thoại, SKU hoặc Slug) đã tồn tại trong hệ thống.";
+            }
+        }
+        ErrorResponse body = ErrorResponse.of(HttpStatus.CONFLICT, message,
                 request.getRequestURI());
         return ResponseEntity.status(HttpStatus.CONFLICT).body(body);
     }

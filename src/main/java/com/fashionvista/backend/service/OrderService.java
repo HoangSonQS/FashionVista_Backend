@@ -15,9 +15,12 @@ public interface OrderService {
 
     OrderResponse cancelMyOrder(String orderNumber);
 
+    OrderResponse repay(String orderNumber);
+
+    OrderResponse changePaymentMethod(String orderNumber, com.fashionvista.backend.entity.PaymentMethod method);
+
     /**
      * Decrease stock cho các items trong order (dùng khi VNPay payment success)
      */
     void decreaseStockForOrder(Order order);
 }
-

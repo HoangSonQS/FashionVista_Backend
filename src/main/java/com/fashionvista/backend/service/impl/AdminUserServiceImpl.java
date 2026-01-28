@@ -189,6 +189,9 @@ public class AdminUserServiceImpl implements AdminUserService {
         if (userRepository.existsByEmail(email)) {
             throw new IllegalArgumentException("Email này đã được sử dụng!");
         }
+        if (userRepository.existsByPhoneNumber(request.getPhoneNumber())) {
+            throw new IllegalArgumentException("Số điện thoại này đã được sử dụng!");
+        }
 
         User user = User.builder()
                 .email(email)

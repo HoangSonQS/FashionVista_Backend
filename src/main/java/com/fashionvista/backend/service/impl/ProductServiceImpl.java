@@ -125,6 +125,13 @@ public class ProductServiceImpl implements ProductService {
                         .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy danh mục."));
             }
 
+            if (productRepository.existsBySku(request.getSku())) {
+                throw new IllegalArgumentException("Mã SKU này đã được sử dụng!");
+            }
+            if (productRepository.existsBySlug(request.getSlug())) {
+                throw new IllegalArgumentException("Slug này đã được sử dụng!");
+            }
+
             Product product = Product.builder()
                     .name(request.getName())
                     .slug(request.getSlug())
@@ -233,6 +240,13 @@ public class ProductServiceImpl implements ProductService {
             if (request.getCategorySlug() != null && !request.getCategorySlug().isBlank()) {
                 category = categoryRepository.findBySlug(request.getCategorySlug())
                         .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy danh mục."));
+            }
+
+            if (!product.getSku().equals(request.getSku()) && productRepository.existsBySku(request.getSku())) {
+                throw new IllegalArgumentException("Mã SKU này đã được sử dụng!");
+            }
+            if (!product.getSlug().equals(request.getSlug()) && productRepository.existsBySlug(request.getSlug())) {
+                throw new IllegalArgumentException("Slug này đã được sử dụng!");
             }
 
             product.setName(request.getName());

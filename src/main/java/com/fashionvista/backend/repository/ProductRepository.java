@@ -13,7 +13,10 @@ public interface ProductRepository extends JpaRepository<Product, Long>, JpaSpec
 
     Optional<Product> findBySku(String sku);
 
+    boolean existsBySku(String sku);
+
+    boolean existsBySlug(String slug);
+
     @Query("select distinct p from Product p left join fetch p.images where p.id in :ids")
     List<Product> findAllWithImagesByIdIn(List<Long> ids);
 }
-
