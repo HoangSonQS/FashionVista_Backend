@@ -59,7 +59,6 @@ public class AdminReturnServiceImpl implements AdminReturnService {
                 .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy yêu cầu đổi trả."));
 
         Order order = returnRequest.getOrder();
-        OrderStatus oldStatus = order.getStatus();
         ReturnStatus targetStatus = request.getStatus();
 
         // Capture previous restocked quantities (Migration logic included)

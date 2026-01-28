@@ -31,14 +31,13 @@ public class AdminProductVariantServiceImpl implements AdminProductVariantServic
     @Override
     @Transactional(readOnly = true)
     public Page<AdminProductVariantResponse> getAll(
-        Long productId,
-        String search,
-        String size,
-        String color,
-        Boolean active,
-        Integer minStock,
-        Pageable pageable
-    ) {
+            Long productId,
+            String search,
+            String size,
+            String color,
+            Boolean active,
+            Integer minStock,
+            Pageable pageable) {
         Specification<ProductVariant> spec = (root, query, cb) -> {
             List<Predicate> predicates = new ArrayList<>();
 
@@ -49,13 +48,11 @@ public class AdminProductVariantServiceImpl implements AdminProductVariantServic
             if (search != null && !search.trim().isEmpty()) {
                 String likeExpression = "%" + search.trim().toLowerCase() + "%";
                 predicates.add(
-                    cb.or(
-                        cb.like(cb.lower(root.get("sku")), likeExpression),
-                        cb.like(cb.lower(root.get("size")), likeExpression),
-                        cb.like(cb.lower(root.get("color")), likeExpression),
-                        cb.like(cb.lower(root.get("product").get("name")), likeExpression)
-                    )
-                );
+                        cb.or(
+                                cb.like(cb.lower(root.get("sku")), likeExpression),
+                                cb.like(cb.lower(root.get("size")), likeExpression),
+                                cb.like(cb.lower(root.get("color")), likeExpression),
+                                cb.like(cb.lower(root.get("product").get("name")), likeExpression)));
             }
 
             if (size != null && !size.trim().isEmpty()) {
@@ -78,14 +75,14 @@ public class AdminProductVariantServiceImpl implements AdminProductVariantServic
         };
 
         return productVariantRepository.findAll(spec, pageable)
-            .map(this::toResponse);
+                .map(this::toResponse);
     }
 
     @Override
     @Transactional(readOnly = true)
     public AdminProductVariantResponse getById(Long id) {
         ProductVariant variant = productVariantRepository.findById(id)
-            .orElseThrow(() -> new EntityNotFoundException("Không tìm thấy biến thể với ID: " + id));
+                .orElseThrow(() -> new EntityNotFoundException("Không tìm thấy biến thể với ID: " + id));
         return toResponse(variant);
     }
 
@@ -94,7 +91,8 @@ public class AdminProductVariantServiceImpl implements AdminProductVariantServic
     public AdminProductVariantResponse create(AdminProductVariantCreateRequest request) {
         // Validate product exists
         Product product = productRepository.findById(request.getProductId())
-            .orElseThrow(() -> new EntityNotFoundException("Không tìm thấy sản phẩm với ID: " + request.getProductId()));
+                .orElseThrow(
+                        () -> new EntityNotFoundException("Không tìm thấy sản phẩm với ID: " + request.getProductId()));
 
         // Check SKU uniqueness
         if (productVariantRepository.findBySku(request.getSku()).isPresent()) {
@@ -105,14 +103,14 @@ public class AdminProductVariantServiceImpl implements AdminProductVariantServic
         BigDecimal price = request.getPrice() != null ? request.getPrice() : product.getPrice();
 
         ProductVariant variant = ProductVariant.builder()
-            .product(product)
-            .size(request.getSize())
-            .color(request.getColor())
-            .sku(request.getSku())
-            .price(price)
-            .stock(request.getStock())
-            .isActive(request.isActive())
-            .build();
+                .product(product)
+                .size(request.getSize())
+                .color(request.getColor())
+                .sku(request.getSku())
+                .price(price)
+                .stock(request.getStock())
+                .isActive(request.isActive())
+                .build();
 
         variant = productVariantRepository.save(variant);
         return toResponse(variant);
@@ -122,7 +120,7 @@ public class AdminProductVariantServiceImpl implements AdminProductVariantServic
     @Transactional
     public AdminProductVariantResponse update(Long id, AdminProductVariantUpdateRequest request) {
         ProductVariant variant = productVariantRepository.findById(id)
-            .orElseThrow(() -> new EntityNotFoundException("Không tìm thấy biến thể với ID: " + id));
+                .orElseThrow(() -> new EntityNotFoundException("Không tìm thấy biến thể với ID: " + id));
 
         // Check SKU uniqueness if SKU is being changed
         if (!variant.getSku().equals(request.getSku())) {
@@ -152,10 +150,7 @@ public class AdminProductVariantServiceImpl implements AdminProductVariantServic
     @Transactional
     public void delete(Long id) {
         ProductVariant variant = productVariantRepository.findById(id)
-            .orElseThrow(() -> new EntityNotFoundException("Không tìm thấy biến thể với ID: " + id));
-
-        // TODO: Check if variant is used in any orders - if yes, throw exception
-        // For now, we'll allow deletion but could add validation later
+                .orElseThrow(() -> new EntityNotFoundException("Không tìm thấy biến thể với ID: " + id));
 
         productVariantRepository.delete(variant);
     }
@@ -168,7 +163,7 @@ public class AdminProductVariantServiceImpl implements AdminProductVariantServic
         }
 
         ProductVariant variant = productVariantRepository.findById(id)
-            .orElseThrow(() -> new EntityNotFoundException("Không tìm thấy biến thể với ID: " + id));
+                .orElseThrow(() -> new EntityNotFoundException("Không tìm thấy biến thể với ID: " + id));
 
         variant.setStock(stock);
         variant = productVariantRepository.save(variant);
@@ -183,7 +178,7 @@ public class AdminProductVariantServiceImpl implements AdminProductVariantServic
         }
 
         ProductVariant variant = productVariantRepository.findById(id)
-            .orElseThrow(() -> new EntityNotFoundException("Không tìm thấy biến thể với ID: " + id));
+                .orElseThrow(() -> new EntityNotFoundException("Không tìm thấy biến thể với ID: " + id));
 
         variant.setPrice(price);
         variant = productVariantRepository.save(variant);
@@ -193,19 +188,18 @@ public class AdminProductVariantServiceImpl implements AdminProductVariantServic
     private AdminProductVariantResponse toResponse(ProductVariant variant) {
         Product product = variant.getProduct();
         return AdminProductVariantResponse.builder()
-            .id(variant.getId())
-            .productId(product.getId())
-            .productName(product.getName())
-            .productSlug(product.getSlug())
-            .size(variant.getSize())
-            .color(variant.getColor())
-            .sku(variant.getSku())
-            .price(variant.getPrice())
-            .stock(variant.getStock())
-            .active(variant.isActive())
-            .createdAt(variant.getCreatedAt())
-            .updatedAt(variant.getUpdatedAt())
-            .build();
+                .id(variant.getId())
+                .productId(product.getId())
+                .productName(product.getName())
+                .productSlug(product.getSlug())
+                .size(variant.getSize())
+                .color(variant.getColor())
+                .sku(variant.getSku())
+                .price(variant.getPrice())
+                .stock(variant.getStock())
+                .active(variant.isActive())
+                .createdAt(variant.getCreatedAt())
+                .updatedAt(variant.getUpdatedAt())
+                .build();
     }
 }
-

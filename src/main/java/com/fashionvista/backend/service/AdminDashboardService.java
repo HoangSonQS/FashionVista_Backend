@@ -17,7 +17,6 @@ import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.PageRequest;
 import com.fashionvista.backend.entity.Product;
-import com.fashionvista.backend.entity.ProductImage;
 import com.fashionvista.backend.repository.ProductRepository;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;

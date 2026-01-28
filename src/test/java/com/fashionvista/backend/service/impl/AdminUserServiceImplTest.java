@@ -3,7 +3,6 @@ package com.fashionvista.backend.service.impl;
 import com.fashionvista.backend.dto.*;
 import com.fashionvista.backend.entity.*;
 import com.fashionvista.backend.repository.*;
-import com.fashionvista.backend.service.UserContextService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;

@@ -35,7 +35,7 @@ public class CollectionServiceImpl implements CollectionService {
     public Page<CollectionSummaryResponse> getPublicCollections(Pageable pageable) {
         LocalDateTime now = LocalDateTime.now();
         return collectionRepository.findActiveVisible(now, pageable)
-            .map(CollectionSummaryResponse::fromEntity);
+                .map(CollectionSummaryResponse::fromEntity);
     }
 
     @Override
@@ -44,37 +44,34 @@ public class CollectionServiceImpl implements CollectionService {
         LocalDateTime now = LocalDateTime.now();
 
         Collection collection = collectionRepository.findBySlug(slug)
-            .orElseThrow(() -> new ResponseStatusException(
-                HttpStatus.NOT_FOUND,
-                "Không tìm thấy bộ sưu tập hoặc đã hết hiệu lực."
-            ));
+                .orElseThrow(() -> new ResponseStatusException(
+                        HttpStatus.NOT_FOUND,
+                        "Không tìm thấy bộ sưu tập hoặc đã hết hiệu lực."));
 
         // Nếu đã hết hạn: tự chuyển sang ENDED và không cho truy cập public
         if (collection.getEndAt() != null && collection.getEndAt().isBefore(now)) {
             collection.setStatus(CollectionStatus.ENDED);
             collectionRepository.save(collection);
             throw new ResponseStatusException(
-                HttpStatus.NOT_FOUND,
-                "Không tìm thấy bộ sưu tập hoặc đã hết hiệu lực."
-            );
+                    HttpStatus.NOT_FOUND,
+                    "Không tìm thấy bộ sưu tập hoặc đã hết hiệu lực.");
         }
 
         // Chỉ allow collection đang ACTIVE và visible
         if (!collection.isVisible()
-            || collection.getStatus() == null
-            || collection.getStatus() != CollectionStatus.ACTIVE) {
+                || collection.getStatus() == null
+                || collection.getStatus() != CollectionStatus.ACTIVE) {
             throw new ResponseStatusException(
-                HttpStatus.NOT_FOUND,
-                "Không tìm thấy bộ sưu tập hoặc đã hết hiệu lực."
-            );
+                    HttpStatus.NOT_FOUND,
+                    "Không tìm thấy bộ sưu tập hoặc đã hết hiệu lực.");
         }
 
-        List<CollectionProduct> collectionProducts =
-            collectionProductRepository.findByCollectionOrderByPositionAscIdAsc(collection);
+        List<CollectionProduct> collectionProducts = collectionProductRepository
+                .findByCollectionOrderByPositionAscIdAsc(collection);
 
         List<ProductListItemDto> products = collectionProducts.stream()
-            .map(cp -> ProductListItemDto.fromEntity(cp.getProduct()))
-            .toList();
+                .map(cp -> ProductListItemDto.fromEntity(cp.getProduct()))
+                .toList();
 
         return CollectionDetailResponse.of(collection, products);
     }
@@ -84,11 +81,10 @@ public class CollectionServiceImpl implements CollectionService {
     @Override
     @Transactional(readOnly = true)
     public Page<CollectionSummaryResponse> searchAdminCollections(
-        String keyword,
-        String status,
-        Boolean visible,
-        Pageable pageable
-    ) {
+            String keyword,
+            String status,
+            Boolean visible,
+            Pageable pageable) {
         CollectionStatus statusEnum = null;
         if (status != null && !status.isBlank()) {
             try {
@@ -104,28 +100,26 @@ public class CollectionServiceImpl implements CollectionService {
                     keywordPattern,
                     statusEnum,
                     visible,
-                    pageable
-                )
-                .map(CollectionSummaryResponse::fromEntity);
+                    pageable)
+                    .map(CollectionSummaryResponse::fromEntity);
         }
         return collectionRepository.searchWithoutKeywordBase(
                 statusEnum,
                 visible,
-                pageable
-            )
-            .map(CollectionSummaryResponse::fromEntity);
+                pageable)
+                .map(CollectionSummaryResponse::fromEntity);
     }
 
     @Override
     @Transactional(readOnly = true)
     public CollectionDetailResponse getAdminCollection(Long id) {
         Collection collection = collectionRepository.findById(id)
-            .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy bộ sưu tập."));
-        List<CollectionProduct> collectionProducts =
-            collectionProductRepository.findByCollectionOrderByPositionAscIdAsc(collection);
+                .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy bộ sưu tập."));
+        List<CollectionProduct> collectionProducts = collectionProductRepository
+                .findByCollectionOrderByPositionAscIdAsc(collection);
         List<ProductListItemDto> products = collectionProducts.stream()
-            .map(cp -> ProductListItemDto.fromEntity(cp.getProduct()))
-            .toList();
+                .map(cp -> ProductListItemDto.fromEntity(cp.getProduct()))
+                .toList();
         return CollectionDetailResponse.of(collection, products);
     }
 
@@ -147,9 +141,9 @@ public class CollectionServiceImpl implements CollectionService {
     public CollectionDetailResponse updateCollection(Long id, CollectionRequest request) {
         validateDates(request.getStartAt(), request.getEndAt());
         Collection collection = collectionRepository.findById(id)
-            .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy bộ sưu tập."));
+                .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy bộ sưu tập."));
         if (!collection.getSlug().equals(request.getSlug())
-            && collectionRepository.existsBySlug(request.getSlug())) {
+                && collectionRepository.existsBySlug(request.getSlug())) {
             throw new IllegalArgumentException("Slug bộ sưu tập đã được sử dụng.");
         }
         applyRequestToEntity(request, collection);
@@ -161,7 +155,7 @@ public class CollectionServiceImpl implements CollectionService {
     @Transactional
     public void deleteCollection(Long id) {
         Collection collection = collectionRepository.findById(id)
-            .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy bộ sưu tập."));
+                .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy bộ sưu tập."));
         collectionProductRepository.deleteByCollection(collection);
         collectionRepository.delete(collection);
     }
@@ -170,7 +164,7 @@ public class CollectionServiceImpl implements CollectionService {
     @Transactional
     public void updateVisibility(Long id, boolean visible) {
         Collection collection = collectionRepository.findById(id)
-            .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy bộ sưu tập."));
+                .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy bộ sưu tập."));
         collection.setVisible(visible);
         collectionRepository.save(collection);
     }
@@ -179,7 +173,7 @@ public class CollectionServiceImpl implements CollectionService {
     @Transactional
     public void setCollectionProducts(Long id, java.util.List<Long> productIds) {
         Collection collection = collectionRepository.findById(id)
-            .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy bộ sưu tập."));
+                .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy bộ sưu tập."));
         collectionProductRepository.deleteByCollection(collection);
         if (productIds == null || productIds.isEmpty()) {
             return;
@@ -187,12 +181,12 @@ public class CollectionServiceImpl implements CollectionService {
         int position = 0;
         for (Long productId : productIds) {
             var product = productRepository.findById(productId)
-                .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy sản phẩm với id: " + productId));
+                    .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy sản phẩm với id: " + productId));
             CollectionProduct cp = CollectionProduct.builder()
-                .collection(collection)
-                .product(product)
-                .position(position++)
-                .build();
+                    .collection(collection)
+                    .product(product)
+                    .position(position++)
+                    .build();
             collectionProductRepository.save(cp);
         }
     }
@@ -200,10 +194,10 @@ public class CollectionServiceImpl implements CollectionService {
     @Override
     @Transactional(readOnly = true)
     public Page<ProductListItemDto> getCollectionProducts(Long collectionId, Pageable pageable) {
-        Collection collection = collectionRepository.findById(collectionId)
-            .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy bộ sưu tập."));
+        collectionRepository.findById(collectionId)
+                .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy bộ sưu tập."));
         Page<CollectionProduct> collectionProducts = collectionProductRepository
-            .findByCollectionIdOrderByPositionAscIdAsc(collectionId, pageable);
+                .findByCollectionIdOrderByPositionAscIdAsc(collectionId, pageable);
         return collectionProducts.map(cp -> ProductListItemDto.fromEntity(cp.getProduct()));
     }
 
@@ -211,10 +205,10 @@ public class CollectionServiceImpl implements CollectionService {
     @Transactional
     public void addProductToCollection(Long collectionId, Long productId) {
         Collection collection = collectionRepository.findById(collectionId)
-            .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy bộ sưu tập."));
+                .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy bộ sưu tập."));
         Product product = productRepository.findById(productId)
-            .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy sản phẩm với id: " + productId));
-        
+                .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy sản phẩm với id: " + productId));
+
         // Kiểm tra xem sản phẩm đã có trong collection chưa
         if (collectionProductRepository.findByCollectionAndProduct(collection, product).isPresent()) {
             throw new IllegalArgumentException("Sản phẩm đã có trong bộ sưu tập.");
@@ -222,17 +216,17 @@ public class CollectionServiceImpl implements CollectionService {
 
         // Tìm position lớn nhất và thêm vào cuối
         List<CollectionProduct> existingProducts = collectionProductRepository
-            .findByCollectionOrderByPositionAscIdAsc(collection);
+                .findByCollectionOrderByPositionAscIdAsc(collection);
         int maxPosition = existingProducts.stream()
-            .mapToInt(CollectionProduct::getPosition)
-            .max()
-            .orElse(-1);
+                .mapToInt(CollectionProduct::getPosition)
+                .max()
+                .orElse(-1);
 
         CollectionProduct cp = CollectionProduct.builder()
-            .collection(collection)
-            .product(product)
-            .position(maxPosition + 1)
-            .build();
+                .collection(collection)
+                .product(product)
+                .position(maxPosition + 1)
+                .build();
         collectionProductRepository.save(cp);
     }
 
@@ -240,15 +234,15 @@ public class CollectionServiceImpl implements CollectionService {
     @Transactional
     public void removeProductFromCollection(Long collectionId, Long productId) {
         Collection collection = collectionRepository.findById(collectionId)
-            .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy bộ sưu tập."));
+                .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy bộ sưu tập."));
         Product product = productRepository.findById(productId)
-            .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy sản phẩm với id: " + productId));
-        
+                .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy sản phẩm với id: " + productId));
+
         CollectionProduct cp = collectionProductRepository.findByCollectionAndProduct(collection, product)
-            .orElseThrow(() -> new IllegalArgumentException("Sản phẩm không có trong bộ sưu tập."));
-        
+                .orElseThrow(() -> new IllegalArgumentException("Sản phẩm không có trong bộ sưu tập."));
+
         collectionProductRepository.delete(cp);
-        
+
         // Reorder các sản phẩm còn lại
         reorderPositions(collection);
     }
@@ -257,19 +251,19 @@ public class CollectionServiceImpl implements CollectionService {
     @Transactional
     public void reorderCollectionProducts(Long collectionId, java.util.List<Long> productIds) {
         Collection collection = collectionRepository.findById(collectionId)
-            .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy bộ sưu tập."));
-        
+                .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy bộ sưu tập."));
+
         if (productIds == null || productIds.isEmpty()) {
             return;
         }
 
         // Validate tất cả productIds đều tồn tại trong collection
         List<CollectionProduct> existingProducts = collectionProductRepository
-            .findByCollectionOrderByPositionAscIdAsc(collection);
+                .findByCollectionOrderByPositionAscIdAsc(collection);
         java.util.Set<Long> existingProductIds = existingProducts.stream()
-            .map(cp -> cp.getProduct().getId())
-            .collect(java.util.stream.Collectors.toSet());
-        
+                .map(cp -> cp.getProduct().getId())
+                .collect(java.util.stream.Collectors.toSet());
+
         for (Long productId : productIds) {
             if (!existingProductIds.contains(productId)) {
                 throw new IllegalArgumentException("Sản phẩm với id " + productId + " không có trong bộ sưu tập.");
@@ -278,8 +272,8 @@ public class CollectionServiceImpl implements CollectionService {
 
         // Update positions theo thứ tự mới
         java.util.Map<Long, CollectionProduct> productMap = existingProducts.stream()
-            .collect(java.util.stream.Collectors.toMap(cp -> cp.getProduct().getId(), cp -> cp));
-        
+                .collect(java.util.stream.Collectors.toMap(cp -> cp.getProduct().getId(), cp -> cp));
+
         int position = 0;
         for (Long productId : productIds) {
             CollectionProduct cp = productMap.get(productId);
@@ -290,41 +284,44 @@ public class CollectionServiceImpl implements CollectionService {
 
     @Override
     @Transactional
-    public void bulkAddRemoveProducts(Long collectionId, java.util.List<Long> addProductIds, java.util.List<Long> removeProductIds) {
+    public void bulkAddRemoveProducts(Long collectionId, java.util.List<Long> addProductIds,
+            java.util.List<Long> removeProductIds) {
         Collection collection = collectionRepository.findById(collectionId)
-            .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy bộ sưu tập."));
+                .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy bộ sưu tập."));
 
         // Remove products
         if (removeProductIds != null && !removeProductIds.isEmpty()) {
             for (Long productId : removeProductIds) {
                 Product product = productRepository.findById(productId)
-                    .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy sản phẩm với id: " + productId));
+                        .orElseThrow(
+                                () -> new IllegalArgumentException("Không tìm thấy sản phẩm với id: " + productId));
                 collectionProductRepository.findByCollectionAndProduct(collection, product)
-                    .ifPresent(collectionProductRepository::delete);
+                        .ifPresent(collectionProductRepository::delete);
             }
         }
 
         // Add products
         if (addProductIds != null && !addProductIds.isEmpty()) {
             List<CollectionProduct> existingProducts = collectionProductRepository
-                .findByCollectionOrderByPositionAscIdAsc(collection);
+                    .findByCollectionOrderByPositionAscIdAsc(collection);
             int maxPosition = existingProducts.stream()
-                .mapToInt(CollectionProduct::getPosition)
-                .max()
-                .orElse(-1);
+                    .mapToInt(CollectionProduct::getPosition)
+                    .max()
+                    .orElse(-1);
 
             int position = maxPosition + 1;
             for (Long productId : addProductIds) {
                 Product product = productRepository.findById(productId)
-                    .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy sản phẩm với id: " + productId));
-                
+                        .orElseThrow(
+                                () -> new IllegalArgumentException("Không tìm thấy sản phẩm với id: " + productId));
+
                 // Kiểm tra xem đã có chưa
                 if (collectionProductRepository.findByCollectionAndProduct(collection, product).isEmpty()) {
                     CollectionProduct cp = CollectionProduct.builder()
-                        .collection(collection)
-                        .product(product)
-                        .position(position++)
-                        .build();
+                            .collection(collection)
+                            .product(product)
+                            .position(position++)
+                            .build();
                     collectionProductRepository.save(cp);
                 }
             }
@@ -336,7 +333,7 @@ public class CollectionServiceImpl implements CollectionService {
 
     private void reorderPositions(Collection collection) {
         List<CollectionProduct> products = collectionProductRepository
-            .findByCollectionOrderByPositionAscIdAsc(collection);
+                .findByCollectionOrderByPositionAscIdAsc(collection);
         int position = 0;
         for (CollectionProduct cp : products) {
             cp.setPosition(position++);
@@ -368,5 +365,3 @@ public class CollectionServiceImpl implements CollectionService {
         collection.setSeoDescription(request.getSeoDescription());
     }
 }
-
-

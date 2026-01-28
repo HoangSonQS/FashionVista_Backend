@@ -14,11 +14,12 @@ import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.RequestPart;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
-import org.springframework.web.bind.annotation.RequestPart;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -32,14 +33,13 @@ public class AdminProductController {
 
     @GetMapping
     public ProductListResponse getProducts(
-        @RequestParam(required = false) String category,
-        @RequestParam(required = false) String search,
-        @RequestParam(required = false) ProductStatus status,
-        @RequestParam(required = false) Boolean featured,
-        @RequestParam(required = false) Boolean visible,
-        @RequestParam(defaultValue = "0") int page,
-        @RequestParam(defaultValue = "20") int size
-    ) {
+            @RequestParam(required = false) String category,
+            @RequestParam(required = false) String search,
+            @RequestParam(required = false) ProductStatus status,
+            @RequestParam(required = false) Boolean featured,
+            @RequestParam(required = false) Boolean visible,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size) {
         return productService.getAdminProducts(category, search, status, featured, visible, page, size);
     }
 
@@ -48,35 +48,38 @@ public class AdminProductController {
         return productService.getProductById(id);
     }
 
+    @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ProductDetailDto createProduct(
+            @RequestPart("product") @Valid com.fashionvista.backend.dto.ProductCreateRequest request,
+            @RequestPart(value = "images", required = false) List<MultipartFile> images) {
+        return productService.createProduct(request, images);
+    }
+
     @PutMapping(value = "/{id}", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ProductDetailDto updateProduct(
-        @PathVariable Long id,
-        @RequestPart("product") @Valid ProductUpdateRequest request,
-        @RequestPart(value = "images", required = false) List<MultipartFile> images
-    ) {
+            @PathVariable Long id,
+            @RequestPart("product") @Valid ProductUpdateRequest request,
+            @RequestPart(value = "images", required = false) List<MultipartFile> images) {
         return productService.updateProduct(id, request, images);
     }
 
     @PatchMapping("/{id}/status")
     public void updateStatus(
-        @PathVariable Long id,
-        @RequestBody StatusUpdatePayload payload
-    ) {
+            @PathVariable Long id,
+            @RequestBody StatusUpdatePayload payload) {
         productService.updateProductStatus(id, payload.status(), payload.featured());
     }
 
     @PatchMapping("/{id}/visibility")
     public void updateVisibility(
-        @PathVariable Long id,
-        @RequestBody VisibilityPayload payload
-    ) {
+            @PathVariable Long id,
+            @RequestBody VisibilityPayload payload) {
         productService.updateProductVisibility(id, payload.visible());
     }
 
     @PatchMapping("/visibility/bulk")
     public void updateVisibilityBulk(
-        @RequestBody BulkVisibilityPayload payload
-    ) {
+            @RequestBody BulkVisibilityPayload payload) {
         productService.updateProductVisibilityBulk(payload.productIds(), payload.visible());
     }
 
@@ -94,6 +97,3 @@ public class AdminProductController {
     public record BulkVisibilityPayload(java.util.List<Long> productIds, boolean visible) {
     }
 }
-
-
-

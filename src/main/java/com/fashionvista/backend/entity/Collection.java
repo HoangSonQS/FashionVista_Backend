@@ -51,7 +51,7 @@ public class Collection {
     /**
      * Ảnh cover/hero cho bộ sưu tập.
      */
-    @Column(name = "hero_image_url")
+    @Column(name = "hero_image_url", columnDefinition = "TEXT")
     private String heroImageUrl;
 
     @Enumerated(EnumType.STRING)
@@ -97,5 +97,3 @@ public class Collection {
         updatedAt = LocalDateTime.now();
     }
 }
-
-
