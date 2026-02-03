@@ -56,6 +56,7 @@ class ProductServiceImplTest {
                 .id(1L)
                 .name("Test Product")
                 .slug("test-product")
+                .sku("TEST-SKU-001")
                 .price(BigDecimal.valueOf(100000))
                 .status(ProductStatus.ACTIVE)
                 .category(category)
@@ -139,6 +140,8 @@ class ProductServiceImplTest {
     void updateProduct_ValidRequest_ReturnsUpdatedProduct() {
         ProductUpdateRequest request = new ProductUpdateRequest();
         request.setName("Updated Product");
+        request.setSlug("test-product"); // Keep same slug to avoid uniqueness check
+        request.setSku("TEST-SKU-001"); // Keep same SKU to avoid uniqueness check
         request.setPrice(BigDecimal.valueOf(150000));
 
         when(productRepository.findById(1L)).thenReturn(Optional.of(product));
