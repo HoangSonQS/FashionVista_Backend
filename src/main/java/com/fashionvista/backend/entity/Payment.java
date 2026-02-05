@@ -54,6 +54,10 @@ public class Payment {
     @Column(name = "payment_gateway_response", columnDefinition = "TEXT")
     private String paymentGatewayResponse; // JSON response from gateway
 
+    @Column(name = "refund_amount", precision = 10, scale = 2)
+    @Builder.Default
+    private BigDecimal refundAmount = BigDecimal.ZERO; // Tổng số tiền đã hoàn
+
     @Column(nullable = false, updatable = false)
     private LocalDateTime createdAt;
 

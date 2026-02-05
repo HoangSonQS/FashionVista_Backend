@@ -20,6 +20,8 @@ public class AdminOverviewResponse {
     private long newCustomers;
     private double conversionRate;
     private List<TopProductMetric> topProducts;
+    private List<RevenueChartData> revenueChartData;
+    private List<RecentActivity> recentActivities;
 
     @Data
     @Builder
@@ -28,7 +30,24 @@ public class AdminOverviewResponse {
         private String productName;
         private long quantity;
         private BigDecimal revenue;
+        private String image;
+        private BigDecimal price;
+        private int stock;
+    }
+
+    @Data
+    @Builder
+    public static class RevenueChartData {
+        private String date;
+        private BigDecimal value;
+    }
+
+    @Data
+    @Builder
+    public static class RecentActivity {
+        private String id;
+        private String user;
+        private String action;
+        private String time;
     }
 }
-
-

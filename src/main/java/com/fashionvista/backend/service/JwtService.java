@@ -25,17 +25,24 @@ public class JwtService {
         Instant now = Instant.now();
 
         JwtClaimsSet claims = JwtClaimsSet.builder()
-            .subject(user.getEmail())
-            .issuedAt(now)
-            .expiresAt(now.plus(validDurationSeconds, ChronoUnit.SECONDS))
-            .claim("role", user.getRole().name())
-            .claim("fullName", user.getFullName())
-            .build();
+                .subject(user.getEmail())
+                .issuedAt(now)
+                .expiresAt(now.plus(validDurationSeconds, ChronoUnit.SECONDS))
+                .claim("role", user.getRole().name())
+                .claim("fullName", user.getFullName())
+                .build();
 
         JwsHeader header = JwsHeader.with(MacAlgorithm.HS256).build();
 
         return jwtEncoder.encode(JwtEncoderParameters.from(header, claims)).getTokenValue();
     }
+
+    public String generateRefreshToken() {
+        return java.util.UUID.randomUUID().toString();
+    }
+
+    public long getRefreshTokenDurationSeconds() {
+        // 30 days
+        return 30L * 24 * 60 * 60;
+    }
 }
-
-

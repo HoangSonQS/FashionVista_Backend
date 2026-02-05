@@ -17,6 +17,8 @@ public class UpdateReturnStatusRequest {
     private RefundMethod refundMethod;
 
     private BigDecimal refundAmount;
+
+    private java.util.List<ReturnItemUpdateDto> items;
+
+    private Boolean restockItems;
 }
-
-

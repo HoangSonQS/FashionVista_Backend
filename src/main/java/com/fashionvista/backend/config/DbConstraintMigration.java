@@ -39,6 +39,18 @@ public class DbConstraintMigration implements ApplicationRunner {
         } catch (Exception ignored) {
             // Nếu không có constraint hoặc đã chuẩn, bỏ qua
         }
+
+        // Đảm bảo bảng payments cho phép trạng thái thanh toán hoàn tiền
+        try {
+            jdbcTemplate.execute("ALTER TABLE payments DROP CONSTRAINT IF EXISTS payments_payment_status_check;");
+            jdbcTemplate.execute(
+                "ALTER TABLE payments ADD CONSTRAINT payments_payment_status_check CHECK (" +
+                    "payment_status IN ('PENDING','PAID','FAILED','REFUND_PENDING','REFUNDED')" +
+                ");"
+            );
+        } catch (Exception ignored) {
+            // Nếu không có constraint hoặc đã chuẩn, bỏ qua
+        }
     }
 }
 

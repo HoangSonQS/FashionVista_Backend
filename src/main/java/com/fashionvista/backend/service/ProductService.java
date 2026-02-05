@@ -33,6 +33,7 @@ public interface ProductService {
         String search,
         ProductStatus status,
         Boolean featured,
+        Boolean visible,
         int page,
         int sizePage);
 
@@ -41,6 +42,10 @@ public interface ProductService {
     ProductDetailDto updateProduct(Long id, ProductUpdateRequest request, List<MultipartFile> images);
 
     void updateProductStatus(Long id, ProductStatus status, Boolean featured);
+
+    void updateProductVisibility(Long id, boolean visible);
+
+    void updateProductVisibilityBulk(List<Long> productIds, boolean visible);
 
     void deleteProduct(Long id);
 
@@ -57,5 +62,13 @@ public interface ProductService {
      * @return danh sách sản phẩm mới nhất
      */
     List<ProductListItemDto> getNewArrivals(int limit);
+
+    /**
+     * Lấy danh sách sản phẩm đang giảm giá (price < compareAtPrice)
+     *
+     * @param limit số lượng sản phẩm tối đa
+     * @return danh sách sản phẩm đang giảm giá
+     */
+    List<ProductListItemDto> getSaleProducts(int limit);
 }
 

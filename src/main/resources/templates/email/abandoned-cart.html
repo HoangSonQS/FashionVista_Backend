@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bạn đã quên gì đó?</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .container {
+            background-color: #f9f9f9;
+            padding: 30px;
+            border-radius: 10px;
+        }
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        .logo {
+            font-size: 24px;
+            font-weight: bold;
+            color: #4a90e2;
+        }
+        .content {
+            background-color: white;
+            padding: 30px;
+            border-radius: 5px;
+            margin-bottom: 20px;
+        }
+        .cart-info {
+            background-color: #f0f0f0;
+            padding: 15px;
+            border-radius: 5px;
+            margin: 20px 0;
+        }
+        .button {
+            display: inline-block;
+            padding: 12px 30px;
+            background-color: #4a90e2;
+            color: white;
+            text-decoration: none;
+            border-radius: 5px;
+            margin: 20px 0;
+        }
+        .footer {
+            text-align: center;
+            color: #666;
+            font-size: 12px;
+            margin-top: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <div class="logo" th:text="${appName}">FashionVista</div>
+        </div>
+        <div class="content">
+            <h2>Bạn đã quên gì đó?</h2>
+            <p>Xin chào <strong th:text="${userName}">Người dùng</strong>,</p>
+            <p>Chúng tôi nhận thấy bạn còn một số sản phẩm trong giỏ hàng. Đừng bỏ lỡ những món đồ yêu thích của bạn nhé!</p>
+            
+            <div class="cart-info">
+                <p><strong>Giỏ hàng:</strong> <span th:text="${itemsCount}">3</span> sản phẩm</p>
+                <p><strong>Tổng trị giá:</strong> <span th:text="${totalValue}">500,000 ₫</span></p>
+            </div>
+
+            <div style="text-align: center;">
+                <a th:href="${cartLink}" class="button">Hoàn tất đơn hàng ngay</a>
+            </div>
+            <p>Nếu bạn cần hỗ trợ, đừng ngần ngại liên hệ với chúng tôi.</p>
+        </div>
+        <div class="footer">
+            <p>Email này được gửi tự động, vui lòng không trả lời.</p>
+            <p>&copy; 2025 <span th:text="${appName}">FashionVista</span>. Tất cả quyền được bảo lưu.</p>
+        </div>
+    </div>
+</body>
+</html>

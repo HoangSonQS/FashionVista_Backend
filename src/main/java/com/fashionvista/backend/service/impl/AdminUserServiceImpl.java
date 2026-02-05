@@ -38,21 +38,20 @@ public class AdminUserServiceImpl implements AdminUserService {
     @Override
     @Transactional(readOnly = true)
     public Page<AdminUserListResponse> getAllUsers(
-        String search,
-        UserRole role,
-        Boolean active,
-        Pageable pageable
-    ) {
+            String search,
+            UserRole role,
+            Boolean active,
+            Pageable pageable) {
         Specification<User> spec = buildSpecification(search, role, active);
         return userRepository.findAll(spec, pageable)
-            .map(this::toAdminUserListResponse);
+                .map(this::toAdminUserListResponse);
     }
 
     @Override
     @Transactional(readOnly = true)
     public AdminUserListResponse getUserById(Long userId) {
         User user = userRepository.findById(userId)
-            .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy người dùng."));
+                .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy người dùng."));
 
         return toAdminUserListResponse(user);
     }
@@ -61,7 +60,7 @@ public class AdminUserServiceImpl implements AdminUserService {
     @Transactional
     public AdminUserListResponse updateUserStatus(Long userId, UpdateUserStatusRequest request) {
         User user = userRepository.findById(userId)
-            .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy người dùng."));
+                .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy người dùng."));
 
         user.setActive(request.getActive());
         User saved = userRepository.save(user);
@@ -73,7 +72,7 @@ public class AdminUserServiceImpl implements AdminUserService {
     @Transactional
     public AdminUserListResponse updateUserRole(Long userId, UpdateUserRoleRequest request) {
         User user = userRepository.findById(userId)
-            .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy người dùng."));
+                .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy người dùng."));
 
         // Validation: Admin không thể tự thay đổi role của chính mình
         User currentAdmin = userContextService.getCurrentUser();
@@ -91,69 +90,72 @@ public class AdminUserServiceImpl implements AdminUserService {
     @Transactional(readOnly = true)
     public AdminUserDetailResponse getUserDetail(Long userId) {
         User user = userRepository.findById(userId)
-            .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy người dùng."));
+                .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy người dùng."));
 
         List<Order> orders = orderRepository.findByUserOrderByCreatedAtDesc(user);
         long totalOrders = orders.size();
         BigDecimal totalSpent = orders.stream()
-            .map(Order::getTotal)
-            .reduce(BigDecimal.ZERO, BigDecimal::add);
+                .map(Order::getTotal)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
         BigDecimal averageOrderValue = totalOrders > 0
-            ? totalSpent.divide(BigDecimal.valueOf(totalOrders), 2, RoundingMode.HALF_UP)
-            : BigDecimal.ZERO;
+                ? totalSpent.divide(BigDecimal.valueOf(totalOrders), 2, RoundingMode.HALF_UP)
+                : BigDecimal.ZERO;
 
         // Tính days since last purchase
         Long daysSinceLastPurchase = orders.stream()
-            .findFirst()
-            .map(order -> ChronoUnit.DAYS.between(order.getCreatedAt().toLocalDate(), LocalDate.now()))
-            .orElse(null);
+                .findFirst()
+                .map(order -> ChronoUnit.DAYS.between(order.getCreatedAt().toLocalDate(), LocalDate.now()))
+                .orElse(null);
 
         // Lấy các relationships
         List<Address> addresses = addressRepository.findByUserOrderByIsDefaultDescCreatedAtDesc(user);
         List<Order> recentOrders = orders.stream().limit(10).collect(Collectors.toList());
-        List<com.fashionvista.backend.entity.Wishlist> wishlists = wishlistRepository.findByUserOrderByCreatedAtDesc(user);
+        List<com.fashionvista.backend.entity.Wishlist> wishlists = wishlistRepository
+                .findByUserOrderByCreatedAtDesc(user);
         List<com.fashionvista.backend.entity.Review> reviews = reviewRepository.findByUserOrderByCreatedAtDesc(user);
         List<LoyaltyPointHistory> loyaltyHistory = loyaltyPointHistoryRepository.findByUserOrderByCreatedAtDesc(user);
         List<LoginActivity> loginHistory = loginActivityRepository.findByUserOrderByCreatedAtDesc(user).stream()
-            .limit(20)
-            .collect(Collectors.toList());
+                .limit(20)
+                .collect(Collectors.toList());
 
         return AdminUserDetailResponse.builder()
-            .id(user.getId())
-            .email(user.getEmail())
-            .fullName(user.getFullName())
-            .phoneNumber(user.getPhoneNumber())
-            .avatarUrl(user.getAvatarUrl())
-            .gender(user.getGender())
-            .dateOfBirth(user.getDateOfBirth())
-            .role(user.getRole())
-            .status(user.getStatus() != null ? user.getStatus() : (user.isActive() ? AccountStatus.ACTIVE : AccountStatus.INACTIVE))
-            .active(user.isActive())
-            .isEmailVerified(user.isEmailVerified())
-            .bannedReason(user.getBannedReason())
-            .bannedAt(user.getBannedAt())
-            .createdAt(user.getCreatedAt())
-            .totalOrders(totalOrders)
-            .totalSpent(totalSpent)
-            .averageOrderValue(averageOrderValue)
-            .loyaltyPoints(user.getLoyaltyPoints() != null ? user.getLoyaltyPoints() : 0)
-            .tier(user.getTier() != null ? user.getTier() : CustomerTier.BRONZE)
-            .lastLoginAt(user.getLastLoginAt())
-            .daysSinceLastPurchase(daysSinceLastPurchase)
-            .addresses(addresses.stream().map(this::toAddressResponse).collect(Collectors.toList()))
-            .recentOrders(recentOrders.stream().map(this::toOrderSummaryResponse).collect(Collectors.toList()))
-            .wishlist(wishlists.stream().map(this::toWishlistItemResponse).collect(Collectors.toList()))
-            .reviews(reviews.stream().map(this::toReviewSummaryResponse).collect(Collectors.toList()))
-            .loyaltyHistory(loyaltyHistory.stream().map(this::toLoyaltyPointHistoryResponse).collect(Collectors.toList()))
-            .loginHistory(loginHistory.stream().map(this::toLoginActivityResponse).collect(Collectors.toList()))
-            .build();
+                .id(user.getId())
+                .email(user.getEmail())
+                .fullName(user.getFullName())
+                .phoneNumber(user.getPhoneNumber())
+                .avatarUrl(user.getAvatarUrl())
+                .gender(user.getGender())
+                .dateOfBirth(user.getDateOfBirth())
+                .role(user.getRole())
+                .status(user.getStatus() != null ? user.getStatus()
+                        : (user.isActive() ? AccountStatus.ACTIVE : AccountStatus.INACTIVE))
+                .active(user.isActive())
+                .isEmailVerified(user.isEmailVerified())
+                .bannedReason(user.getBannedReason())
+                .bannedAt(user.getBannedAt())
+                .createdAt(user.getCreatedAt())
+                .totalOrders(totalOrders)
+                .totalSpent(totalSpent)
+                .averageOrderValue(averageOrderValue)
+                .loyaltyPoints(user.getLoyaltyPoints() != null ? user.getLoyaltyPoints() : 0)
+                .tier(user.getTier() != null ? user.getTier() : CustomerTier.BRONZE)
+                .lastLoginAt(user.getLastLoginAt())
+                .daysSinceLastPurchase(daysSinceLastPurchase)
+                .addresses(addresses.stream().map(this::toAddressResponse).collect(Collectors.toList()))
+                .recentOrders(recentOrders.stream().map(this::toOrderSummaryResponse).collect(Collectors.toList()))
+                .wishlist(wishlists.stream().map(this::toWishlistItemResponse).collect(Collectors.toList()))
+                .reviews(reviews.stream().map(this::toReviewSummaryResponse).collect(Collectors.toList()))
+                .loyaltyHistory(
+                        loyaltyHistory.stream().map(this::toLoyaltyPointHistoryResponse).collect(Collectors.toList()))
+                .loginHistory(loginHistory.stream().map(this::toLoginActivityResponse).collect(Collectors.toList()))
+                .build();
     }
 
     @Override
     @Transactional
     public AdminUserListResponse addLoyaltyPoints(Long userId, AddLoyaltyPointsRequest request) {
         User user = userRepository.findById(userId)
-            .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy người dùng."));
+                .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy người dùng."));
 
         int currentPoints = user.getLoyaltyPoints() != null ? user.getLoyaltyPoints() : 0;
         int newBalance = currentPoints + request.getPoints();
@@ -167,14 +169,14 @@ public class AdminUserServiceImpl implements AdminUserService {
 
         // Tạo lịch sử
         LoyaltyPointHistory history = LoyaltyPointHistory.builder()
-            .user(saved)
-            .points(request.getPoints())
-            .balanceAfter(newBalance)
-            .transactionType(request.getTransactionType())
-            .source(request.getSource())
-            .description(request.getDescription())
-            .createdBy(userContextService.getCurrentUser())
-            .build();
+                .user(saved)
+                .points(request.getPoints())
+                .balanceAfter(newBalance)
+                .transactionType(request.getTransactionType())
+                .source(request.getSource())
+                .description(request.getDescription())
+                .createdBy(userContextService.getCurrentUser())
+                .build();
         loyaltyPointHistoryRepository.save(history);
 
         return toAdminUserListResponse(saved);
@@ -182,24 +184,51 @@ public class AdminUserServiceImpl implements AdminUserService {
 
     @Override
     @Transactional
-    public String resetPassword(Long userId, ResetPasswordRequest request) {
-        User user = userRepository.findById(userId)
-            .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy người dùng."));
+    public AdminUserListResponse createUser(CreateUserRequest request) {
+        String email = request.getEmail().toLowerCase().trim();
+        if (userRepository.existsByEmail(email)) {
+            throw new IllegalArgumentException("Email này đã được sử dụng!");
+        }
+        if (userRepository.existsByPhoneNumber(request.getPhoneNumber())) {
+            throw new IllegalArgumentException("Số điện thoại này đã được sử dụng!");
+        }
 
-        // Tạo mật khẩu tạm ngẫu nhiên
-        String tempPassword = generateTempPassword();
+        User user = User.builder()
+                .email(email)
+                .password(passwordEncoder.encode(request.getPassword()))
+                .fullName(request.getFullName())
+                .phoneNumber(request.getPhoneNumber())
+                .role(request.getRole())
+                .active(true)
+                .isEmailVerified(true) // Admin tạo thì mặc định verified
+                .build();
+
+        User saved = userRepository.save(user);
+        return toAdminUserListResponse(saved);
+    }
+
+    @Override
+    @Transactional
+    public String resetPassword(Long userId, AdminResetPasswordRequest request) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy người dùng."));
+
+        String passwordToUse;
+        if (request.getNewPassword() != null && !request.getNewPassword().isBlank()) {
+            passwordToUse = request.getNewPassword();
+        } else {
+            passwordToUse = generateTempPassword();
+        }
 
         // Hash và lưu
-        user.setPassword(passwordEncoder.encode(tempPassword));
+        user.setPassword(passwordEncoder.encode(passwordToUse));
         userRepository.save(user);
 
-        // TODO: Có thể bổ sung gửi email mật khẩu tạm cho user (theo yêu cầu nghiệp vụ)
-
-        return tempPassword;
+        return passwordToUse;
     }
 
     private String generateTempPassword() {
-        String chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+        String chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%";
         SecureRandom random = new SecureRandom();
         StringBuilder sb = new StringBuilder(12);
         for (int i = 0; i < 12; i++) {
@@ -210,90 +239,90 @@ public class AdminUserServiceImpl implements AdminUserService {
 
     private AddressResponse toAddressResponse(com.fashionvista.backend.entity.Address address) {
         return AddressResponse.builder()
-            .id(address.getId())
-            .fullName(address.getFullName())
-            .phone(address.getPhone())
-            .address(address.getAddress())
-            .ward(address.getWard())
-            .district(address.getDistrict())
-            .city(address.getCity())
-            .isDefault(address.isDefault())
-            .build();
+                .id(address.getId())
+                .fullName(address.getFullName())
+                .phone(address.getPhone())
+                .address(address.getAddress())
+                .ward(address.getWard())
+                .district(address.getDistrict())
+                .city(address.getCity())
+                .isDefault(address.isDefault())
+                .build();
     }
 
     private OrderSummaryResponse toOrderSummaryResponse(Order order) {
         return OrderSummaryResponse.builder()
-            .id(order.getId())
-            .orderNumber(order.getOrderNumber())
-            .status(order.getStatus())
-            .paymentStatus(order.getPaymentStatus())
-            .total(order.getTotal())
-            .itemCount(order.getItems().size())
-            .createdAt(order.getCreatedAt())
-            .build();
+                .id(order.getId())
+                .orderNumber(order.getOrderNumber())
+                .status(order.getStatus())
+                .paymentStatus(order.getPaymentStatus())
+                .total(order.getTotal())
+                .itemCount(order.getItems().size())
+                .createdAt(order.getCreatedAt())
+                .build();
     }
 
     private WishlistItemResponse toWishlistItemResponse(com.fashionvista.backend.entity.Wishlist wishlist) {
         com.fashionvista.backend.entity.Product product = wishlist.getProduct();
         String thumbnailUrl = product.getImages() != null && !product.getImages().isEmpty()
-            ? product.getImages().stream()
-                .filter(image -> image.isPrimary() && image.getUrl() != null)
-                .map(image -> image.getUrl())
-                .findFirst()
-                .orElseGet(() -> product.getImages().stream()
-                    .map(image -> image.getUrl())
-                    .findFirst()
-                    .orElse(null))
-            : null;
+                ? product.getImages().stream()
+                        .filter(image -> image.isPrimary() && image.getUrl() != null)
+                        .map(image -> image.getUrl())
+                        .findFirst()
+                        .orElseGet(() -> product.getImages().stream()
+                                .map(image -> image.getUrl())
+                                .findFirst()
+                                .orElse(null))
+                : null;
 
         return WishlistItemResponse.builder()
-            .id(wishlist.getId())
-            .productId(product.getId())
-            .productName(product.getName())
-            .productSlug(product.getSlug())
-            .thumbnailUrl(thumbnailUrl)
-            .price(product.getPrice())
-            .compareAtPrice(product.getCompareAtPrice())
-            .build();
+                .id(wishlist.getId())
+                .productId(product.getId())
+                .productName(product.getName())
+                .productSlug(product.getSlug())
+                .thumbnailUrl(thumbnailUrl)
+                .price(product.getPrice())
+                .compareAtPrice(product.getCompareAtPrice())
+                .build();
     }
 
     private ReviewSummaryResponse toReviewSummaryResponse(com.fashionvista.backend.entity.Review review) {
         com.fashionvista.backend.entity.Product product = review.getProduct();
         return ReviewSummaryResponse.builder()
-            .id(review.getId())
-            .productId(product.getId())
-            .productName(product.getName())
-            .productSlug(product.getSlug())
-            .rating(review.getRating())
-            .comment(review.getComment())
-            .createdAt(review.getCreatedAt())
-            .build();
+                .id(review.getId())
+                .productId(product.getId())
+                .productName(product.getName())
+                .productSlug(product.getSlug())
+                .rating(review.getRating())
+                .comment(review.getComment())
+                .createdAt(review.getCreatedAt())
+                .build();
     }
 
     private LoyaltyPointHistoryResponse toLoyaltyPointHistoryResponse(LoyaltyPointHistory history) {
         return LoyaltyPointHistoryResponse.builder()
-            .id(history.getId())
-            .points(history.getPoints())
-            .balanceAfter(history.getBalanceAfter())
-            .transactionType(history.getTransactionType())
-            .source(history.getSource())
-            .description(history.getDescription())
-            .createdAt(history.getCreatedAt())
-            .createdByName(history.getCreatedBy() != null ? history.getCreatedBy().getFullName() : null)
-            .build();
+                .id(history.getId())
+                .points(history.getPoints())
+                .balanceAfter(history.getBalanceAfter())
+                .transactionType(history.getTransactionType())
+                .source(history.getSource())
+                .description(history.getDescription())
+                .createdAt(history.getCreatedAt())
+                .createdByName(history.getCreatedBy() != null ? history.getCreatedBy().getFullName() : null)
+                .build();
     }
 
     private LoginActivityResponse toLoginActivityResponse(LoginActivity activity) {
         return LoginActivityResponse.builder()
-            .id(activity.getId())
-            .ipAddress(activity.getIpAddress())
-            .userAgent(activity.getUserAgent())
-            .deviceType(activity.getDeviceType())
-            .location(activity.getLocation())
-            .loginSuccess(activity.isLoginSuccess())
-            .failureReason(activity.getFailureReason())
-            .createdAt(activity.getCreatedAt())
-            .build();
+                .id(activity.getId())
+                .ipAddress(activity.getIpAddress())
+                .userAgent(activity.getUserAgent())
+                .deviceType(activity.getDeviceType())
+                .location(activity.getLocation())
+                .loginSuccess(activity.isLoginSuccess())
+                .failureReason(activity.getFailureReason())
+                .createdAt(activity.getCreatedAt())
+                .build();
     }
 
     private Specification<User> buildSpecification(String search, UserRole role, Boolean active) {
@@ -324,15 +353,14 @@ public class AdminUserServiceImpl implements AdminUserService {
         long orderCount = orderRepository.countByUser(user);
 
         return AdminUserListResponse.builder()
-            .id(user.getId())
-            .email(user.getEmail())
-            .fullName(user.getFullName())
-            .phoneNumber(user.getPhoneNumber())
-            .role(user.getRole())
-            .active(user.isActive())
-            .createdAt(user.getCreatedAt())
-            .orderCount(orderCount)
-            .build();
+                .id(user.getId())
+                .email(user.getEmail())
+                .fullName(user.getFullName())
+                .phoneNumber(user.getPhoneNumber())
+                .role(user.getRole())
+                .active(user.isActive())
+                .createdAt(user.getCreatedAt())
+                .orderCount(orderCount)
+                .build();
     }
 }
-

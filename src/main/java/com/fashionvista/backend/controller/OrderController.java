@@ -39,5 +39,16 @@ public class OrderController {
     public OrderResponse cancelOrder(@PathVariable String orderNumber) {
         return orderService.cancelMyOrder(orderNumber);
     }
-}
 
+    @PostMapping("/{orderNumber}/repay")
+    public OrderResponse repay(@PathVariable String orderNumber) {
+        return orderService.repay(orderNumber);
+    }
+
+    @PostMapping("/{orderNumber}/change-payment-method")
+    public OrderResponse changePaymentMethod(
+            @PathVariable String orderNumber,
+            @org.springframework.web.bind.annotation.RequestParam com.fashionvista.backend.entity.PaymentMethod method) {
+        return orderService.changePaymentMethod(orderNumber, method);
+    }
+}

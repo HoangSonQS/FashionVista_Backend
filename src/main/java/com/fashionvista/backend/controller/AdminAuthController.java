@@ -3,6 +3,7 @@ package com.fashionvista.backend.controller;
 import com.fashionvista.backend.dto.AuthResponse;
 import com.fashionvista.backend.dto.LoginRequest;
 import com.fashionvista.backend.service.AuthService;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -19,8 +20,8 @@ public class AdminAuthController {
     private final AuthService authService;
 
     @PostMapping("/login")
-    public ResponseEntity<AuthResponse> login(@Valid @RequestBody LoginRequest request) {
-        AuthResponse response = authService.loginAdmin(request);
+    public ResponseEntity<AuthResponse> login(@Valid @RequestBody LoginRequest request, HttpServletRequest httpRequest) {
+        AuthResponse response = authService.loginAdmin(request, httpRequest);
         return ResponseEntity.ok(response);
     }
 }

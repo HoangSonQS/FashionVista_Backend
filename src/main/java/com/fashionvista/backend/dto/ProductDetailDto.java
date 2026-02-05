@@ -12,6 +12,7 @@ public class ProductDetailDto {
     Long id;
     String name;
     String slug;
+    String sku;
     String description;
     String shortDescription;
     BigDecimal price;
@@ -19,10 +20,10 @@ public class ProductDetailDto {
     String status;
     boolean featured;
     String category;
+    String categorySlug;
     List<String> tags;
     List<String> sizes;
     List<String> colors;
     List<ProductImageDto> images;
     List<ProductVariantDto> variants;
 }
-

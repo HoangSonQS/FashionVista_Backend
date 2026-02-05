@@ -14,6 +14,8 @@ import com.fashionvista.backend.repository.UserRepository;
 import com.fashionvista.backend.service.AuthService;
 import com.fashionvista.backend.service.EmailService;
 import com.fashionvista.backend.service.JwtService;
+import com.fashionvista.backend.service.LoginActivityService;
+import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -33,40 +35,70 @@ public class AuthServiceImpl implements AuthService {
     private final EmailService emailService;
     private final EmailVerificationTokenRepository emailVerificationTokenRepository;
     private final PasswordResetTokenRepository passwordResetTokenRepository;
+    private final com.fashionvista.backend.repository.RefreshTokenRepository refreshTokenRepository;
+    private final LoginActivityService loginActivityService;
+
+    private String generateAndSaveRefreshToken(User user) {
+        String token = jwtService.generateRefreshToken();
+
+        // Tìm token cũ hoặc tạo mới nếu chưa có
+        com.fashionvista.backend.entity.RefreshToken refreshToken = refreshTokenRepository.findByUser(user)
+                .orElse(com.fashionvista.backend.entity.RefreshToken.builder()
+                        .user(user)
+                        .build());
+
+        // Cập nhật thông tin token mới
+        refreshToken.setToken(token);
+        refreshToken.setExpiryDate(java.time.Instant.now().plus(jwtService.getRefreshTokenDurationSeconds(),
+                java.time.temporal.ChronoUnit.SECONDS));
+
+        refreshTokenRepository.save(refreshToken);
+        return token;
+    }
+
+    private AuthResponse buildAuthResponse(User user) {
+        UserResponse userResponse = UserResponse.fromEntity(user);
+        String token = jwtService.generateToken(user);
+        String refreshToken = generateAndSaveRefreshToken(user);
+        return new AuthResponse(token, refreshToken, userResponse);
+    }
 
     @Override
     @Transactional
     public AuthResponse register(RegisterRequest request) {
-        if (userRepository.existsByEmail(request.getEmail())) {
+        String email = request.getEmail().toLowerCase().trim();
+        if (userRepository.existsByEmail(email)) {
             throw new IllegalArgumentException("Email đã được sử dụng.");
         }
 
+        if (userRepository.existsByPhoneNumber(request.getPhoneNumber())) {
+            throw new IllegalArgumentException("Số điện thoại đã được sử dụng.");
+        }
+
         User user = User.builder()
-            .email(request.getEmail())
-            .password(passwordEncoder.encode(request.getPassword()))
-            .fullName(request.getFullName())
-            .phoneNumber(request.getPhoneNumber())
-            .role(UserRole.CUSTOMER)
-            .active(true)
-            .isEmailVerified(false) // Chưa xác thực email
-            .build();
+                .email(email)
+                .password(passwordEncoder.encode(request.getPassword()))
+                .fullName(request.getFullName())
+                .phoneNumber(request.getPhoneNumber())
+                .role(UserRole.CUSTOMER)
+                .active(true)
+                .isEmailVerified(false) // Chưa xác thực email
+                .build();
 
         User saved = userRepository.save(user);
 
         // Tạo và gửi email verification token
         String verificationToken = generateVerificationToken();
         EmailVerificationToken tokenEntity = EmailVerificationToken.builder()
-            .token(verificationToken)
-            .user(saved)
-            .build();
+                .token(verificationToken)
+                .user(saved)
+                .build();
         emailVerificationTokenRepository.save(tokenEntity);
 
         // Gửi email xác thực
         emailService.sendVerificationEmail(saved, verificationToken);
 
-        UserResponse userResponse = UserResponse.fromEntity(saved);
-        String token = jwtService.generateToken(saved);
-        return new AuthResponse(token, userResponse);
+        return buildAuthResponse(saved);
     }
 
     /**
@@ -87,30 +119,76 @@ public class AuthServiceImpl implements AuthService {
     }
 
     @Override
-    @Transactional(readOnly = true)
-    public AuthResponse login(LoginRequest request) {
-        User user = authenticate(request);
+    @Transactional
+    public AuthResponse login(LoginRequest request, HttpServletRequest httpRequest) {
+        String identifier = request.getIdentifier().trim();
+        User user = findByIdentifier(identifier);
+
+        if (user == null) {
+            // User không tồn tại - không thể ghi lại vì entity yêu cầu user không null
+            // Nhưng vẫn throw exception để bảo mật (không tiết lộ user có tồn tại hay
+            // không)
+            throw new IllegalArgumentException("Email/số điện thoại hoặc mật khẩu không đúng.");
+        }
+
+        if (!passwordEncoder.matches(request.getPassword(), user.getPassword())) {
+            // Password sai - ghi lại đăng nhập thất bại
+            if (httpRequest != null) {
+                loginActivityService.recordFailedLogin(
+                        user,
+                        "Mật khẩu không đúng.",
+                        httpRequest);
+            }
+            throw new IllegalArgumentException("Email/số điện thoại hoặc mật khẩu không đúng.");
+        }
+
+        // Ghi lại đăng nhập thành công
+        if (httpRequest != null) {
+            loginActivityService.recordSuccessfulLogin(user, httpRequest);
+        }
+
         return buildAuthResponse(user);
     }
 
     @Override
-    @Transactional(readOnly = true)
-    public AuthResponse loginAdmin(LoginRequest request) {
-        User user = authenticate(request);
-        if (user.getRole() != UserRole.ADMIN) {
-            throw new IllegalArgumentException("Tài khoản không có quyền quản trị.");
-        }
-        return buildAuthResponse(user);
-    }
-
-    private User authenticate(LoginRequest request) {
+    @Transactional
+    public AuthResponse loginAdmin(LoginRequest request, HttpServletRequest httpRequest) {
         String identifier = request.getIdentifier().trim();
         User user = findByIdentifier(identifier);
 
-        if (user == null || !passwordEncoder.matches(request.getPassword(), user.getPassword())) {
+        if (user == null) {
+            // User không tồn tại - không thể ghi lại vì entity yêu cầu user không null
             throw new IllegalArgumentException("Email/số điện thoại hoặc mật khẩu không đúng.");
         }
-        return user;
+
+        if (!passwordEncoder.matches(request.getPassword(), user.getPassword())) {
+            // Password sai - ghi lại đăng nhập thất bại
+            if (httpRequest != null) {
+                loginActivityService.recordFailedLogin(
+                        user,
+                        "Mật khẩu không đúng.",
+                        httpRequest);
+            }
+            throw new IllegalArgumentException("Email/số điện thoại hoặc mật khẩu không đúng.");
+        }
+
+        if (user.getRole() != UserRole.ADMIN && user.getRole() != UserRole.STAFF) {
+            // Ghi lại đăng nhập thất bại (không có quyền admin)
+            if (httpRequest != null) {
+                loginActivityService.recordFailedLogin(
+                        user,
+                        "Tài khoản không có quyền quản trị.",
+                        httpRequest);
+            }
+            throw new IllegalArgumentException("Tài khoản không có quyền quản trị.");
+        }
+
+        // Ghi lại đăng nhập thành công
+        if (httpRequest != null) {
+            loginActivityService.recordSuccessfulLogin(user, httpRequest);
+        }
+
+        return buildAuthResponse(user);
     }
 
     private User findByIdentifier(String identifier) {
@@ -124,17 +202,11 @@ public class AuthServiceImpl implements AuthService {
         return user;
     }
 
-    private AuthResponse buildAuthResponse(User user) {
-        UserResponse userResponse = UserResponse.fromEntity(user);
-        String token = jwtService.generateToken(user);
-        return new AuthResponse(token, userResponse);
-    }
-
     @Override
     @Transactional
     public boolean verifyEmail(String token) {
         EmailVerificationToken verificationToken = emailVerificationTokenRepository.findByToken(token)
-            .orElseThrow(() -> new IllegalArgumentException("Token không hợp lệ."));
+                .orElseThrow(() -> new IllegalArgumentException("Token không hợp lệ."));
 
         if (verificationToken.isExpired()) {
             throw new IllegalArgumentException("Token đã hết hạn. Vui lòng yêu cầu gửi lại email xác thực.");
@@ -158,7 +230,7 @@ public class AuthServiceImpl implements AuthService {
     @Transactional
     public void resendVerificationEmail(String email) {
         User user = userRepository.findByEmail(email)
-            .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy tài khoản với email này."));
+                .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy tài khoản với email này."));
 
         if (user.isEmailVerified()) {
             throw new IllegalArgumentException("Email đã được xác thực.");
@@ -166,14 +238,14 @@ public class AuthServiceImpl implements AuthService {
 
         // Xóa token cũ nếu có
         emailVerificationTokenRepository.findByUser(user)
-            .ifPresent(emailVerificationTokenRepository::delete);
+                .ifPresent(emailVerificationTokenRepository::delete);
 
         // Tạo token mới
         String verificationToken = generateVerificationToken();
         EmailVerificationToken tokenEntity = EmailVerificationToken.builder()
-            .token(verificationToken)
-            .user(user)
-            .build();
+                .token(verificationToken)
+                .user(user)
+                .build();
         emailVerificationTokenRepository.save(tokenEntity);
 
         // Gửi email
@@ -183,17 +255,22 @@ public class AuthServiceImpl implements AuthService {
     @Override
     @Transactional
     public void forgotPassword(String email) {
-        User user = userRepository.findByEmail(email)
-            .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy tài khoản với email này."));
+        // Không tiết lộ sự tồn tại của email để tránh lộ thông tin
+        User user = userRepository.findByEmail(email).orElse(null);
+        if (user == null) {
+            return; // Trả về 200 OK ở controller với thông điệp chung
+        }
 
-        passwordResetTokenRepository.findByUser(user).ifPresent(passwordResetTokenRepository::delete);
+        // Giữ một bản ghi/reset token duy nhất cho mỗi user để tránh lỗi unique
+        // constraint
+        PasswordResetToken tokenEntity = passwordResetTokenRepository.findByUser(user)
+                .orElse(PasswordResetToken.builder().user(user).build());
 
         String resetToken = generateResetToken();
-        PasswordResetToken tokenEntity = PasswordResetToken.builder()
-            .token(resetToken)
-            .user(user)
-            .expiresAt(LocalDateTime.now().plusHours(1))
-            .build();
+        tokenEntity.setToken(resetToken);
+        tokenEntity.setExpiresAt(LocalDateTime.now().plusHours(1));
+        tokenEntity.setUsedAt(null); // reset trạng thái đã dùng
+
         passwordResetTokenRepository.save(tokenEntity);
 
         emailService.sendPasswordResetEmail(user, resetToken);
@@ -203,7 +280,7 @@ public class AuthServiceImpl implements AuthService {
     @Transactional
     public void resetPassword(String token, String newPassword) {
         PasswordResetToken resetToken = passwordResetTokenRepository.findByToken(token)
-            .orElseThrow(() -> new IllegalArgumentException("Token không hợp lệ."));
+                .orElseThrow(() -> new IllegalArgumentException("Token không hợp lệ."));
 
         if (resetToken.isExpired()) {
             throw new IllegalArgumentException("Token đã hết hạn. Vui lòng yêu cầu lại đặt lại mật khẩu.");
@@ -219,6 +296,45 @@ public class AuthServiceImpl implements AuthService {
         resetToken.setUsedAt(LocalDateTime.now());
         passwordResetTokenRepository.save(resetToken);
     }
+
+    @Override
+    @Transactional
+    public com.fashionvista.backend.dto.RefreshTokenResponse refreshToken(
+            com.fashionvista.backend.dto.RefreshTokenRequest request) {
+        String requestRefreshToken = request.getRefreshToken();
+
+        return refreshTokenRepository.findByToken(requestRefreshToken)
+                .map(refreshToken -> {
+                    verifyExpiration(refreshToken);
+
+                    User user = refreshToken.getUser();
+                    String token = jwtService.generateToken(user);
+
+                    // Token Rotation: Invalidate old token, issue new one
+                    refreshTokenRepository.delete(refreshToken);
+                    String newRefreshToken = generateAndSaveRefreshToken(user);
+
+                    return com.fashionvista.backend.dto.RefreshTokenResponse.builder()
+                            .accessToken(token)
+                            .refreshToken(newRefreshToken)
+                            .build();
+                })
+                .orElseThrow(() -> new IllegalArgumentException("Refresh token không tồn tại trong database!"));
+    }
+
+    private void verifyExpiration(com.fashionvista.backend.entity.RefreshToken token) {
+        if (token.getExpiryDate().compareTo(java.time.Instant.now()) < 0) {
+            refreshTokenRepository.delete(token);
+            throw new IllegalArgumentException("Refresh token đã hết hạn. Vui lòng đăng nhập lại.");
+        }
+    }
+
+    @Override
+    @Transactional
+    public void logout(String requestRefreshToken) {
+        if (requestRefreshToken != null && !requestRefreshToken.isEmpty()) {
+            refreshTokenRepository.findByToken(requestRefreshToken)
+                    .ifPresent(refreshTokenRepository::delete);
+        }
+    }
 }
-
-

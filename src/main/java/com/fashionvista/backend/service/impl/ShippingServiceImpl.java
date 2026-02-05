@@ -3,18 +3,30 @@ package com.fashionvista.backend.service.impl;
 import com.fashionvista.backend.config.GhnConfig;
 import com.fashionvista.backend.dto.GhnFeeRequest;
 import com.fashionvista.backend.dto.GhnFeeResponse;
+import com.fashionvista.backend.dto.OrderResponse;
+import com.fashionvista.backend.dto.ShippingCreateRequest;
 import com.fashionvista.backend.dto.ShippingFeeResponse;
+import com.fashionvista.backend.dto.ShippingWebhookPayload;
 import com.fashionvista.backend.entity.Address;
+import com.fashionvista.backend.entity.Order;
+import com.fashionvista.backend.entity.OrderStatus;
 import com.fashionvista.backend.repository.AddressRepository;
+import com.fashionvista.backend.repository.OrderRepository;
+import com.fashionvista.backend.service.AdminOrderService;
 import com.fashionvista.backend.service.ShippingService;
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
+import java.util.Locale;
 import java.util.Map;
+import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.StringUtils;
 import org.springframework.web.client.RestTemplate;
 
 @Service
@@ -23,6 +35,8 @@ public class ShippingServiceImpl implements ShippingService {
 
     private final GhnConfig ghnConfig;
     private final AddressRepository addressRepository;
+    private final OrderRepository orderRepository;
+    private final AdminOrderService adminOrderService;
     private final RestTemplate restTemplate = new RestTemplate();
 
     @Override
@@ -76,9 +90,68 @@ public class ShippingServiceImpl implements ShippingService {
             .build();
     }
 
+    @Override
+    @Transactional
+    public OrderResponse createShipping(String orderNumber, ShippingCreateRequest request) {
+        Order order = orderRepository.findByOrderNumber(orderNumber)
+            .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy đơn hàng."));
+
+        String carrier = StringUtils.hasText(request.getCarrier()) ? request.getCarrier().toUpperCase(Locale.ROOT) : "GHN";
+        String trackingNumber = carrier + "-" + UUID.randomUUID().toString().substring(0, 8).toUpperCase(Locale.ROOT);
+        order.setTrackingNumber(trackingNumber);
+        if (order.getStatus() == OrderStatus.CONFIRMED || order.getStatus() == OrderStatus.PROCESSING) {
+            order.setStatus(OrderStatus.SHIPPING);
+        }
+        order.setUpdatedAt(LocalDateTime.now());
+        orderRepository.save(order);
+        return adminOrderService.getOrderById(order.getId());
+    }
+
+    @Override
+    @Transactional
+    public OrderResponse cancelShipping(String orderNumber, String note) {
+        Order order = orderRepository.findByOrderNumber(orderNumber)
+            .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy đơn hàng."));
+        order.setTrackingNumber(null);
+        if (order.getStatus() == OrderStatus.SHIPPING) {
+            order.setStatus(OrderStatus.PROCESSING);
+        }
+        order.setUpdatedAt(LocalDateTime.now());
+        orderRepository.save(order);
+        return adminOrderService.getOrderById(order.getId());
+    }
+
+    @Override
+    @Transactional
+    public void handleWebhook(ShippingWebhookPayload payload) {
+        if (payload == null || !StringUtils.hasText(payload.getTrackingNumber())) {
+            return;
+        }
+        orderRepository.findByTrackingNumber(payload.getTrackingNumber()).ifPresent(order -> {
+            String status = payload.getStatus() != null ? payload.getStatus().toLowerCase(Locale.ROOT) : "";
+            switch (status) {
+                case "pickedup":
+                case "intransit":
+                    order.setStatus(OrderStatus.SHIPPING);
+                    break;
+                case "delivered":
+                    order.setStatus(OrderStatus.DELIVERED);
+                    break;
+                case "return":
+                case "returned":
+                    order.setStatus(OrderStatus.CANCELLED);
+                    break;
+                default:
+                    return;
+            }
+            order.setUpdatedAt(LocalDateTime.now());
+            orderRepository.save(order);
+        });
+    }
+
     private Integer resolveServiceId(String service) {
         if (service == null) return null;
-        String key = service.toUpperCase();
+        String key = service.toUpperCase(Locale.ROOT);
         Map<String, Integer> map = Map.of(
             "STANDARD", 53321, // placeholder service_id
             "FAST", 53321,
@@ -87,4 +160,3 @@ public class ShippingServiceImpl implements ShippingService {
         return map.getOrDefault(key, 53321);
     }
 }
-

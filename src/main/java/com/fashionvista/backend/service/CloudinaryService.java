@@ -32,6 +32,27 @@ public class CloudinaryService {
         }
     }
 
+    /**
+     * Upload ảnh cho category
+     */
+    public CloudinaryUploadResult uploadCategoryImage(MultipartFile file) {
+        try {
+            Map<?, ?> result = cloudinary.uploader().upload(
+                file.getBytes(),
+                ObjectUtils.asMap(
+                    "folder", "fashionvista/categories",
+                    "resource_type", "image"
+                )
+            );
+            return new CloudinaryUploadResult(
+                (String) result.get("public_id"),
+                (String) result.get("secure_url")
+            );
+        } catch (IOException e) {
+            throw new IllegalStateException("Không thể upload ảnh lên Cloudinary.", e);
+        }
+    }
+
     public void deleteImage(String publicId) {
         if (publicId == null || publicId.isBlank()) {
             return;

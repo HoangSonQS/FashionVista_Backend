@@ -10,5 +10,7 @@ public class CategoryResponse {
     Long id;
     String name;
     String slug;
+    String description;
+    String image;
 }
 

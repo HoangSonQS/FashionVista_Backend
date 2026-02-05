@@ -38,9 +38,14 @@ public class Category {
     @Column(nullable = false, unique = true)
     private String slug;
 
+    @Column(columnDefinition = "TEXT")
     private String description;
 
+    @Column(columnDefinition = "TEXT")
     private String image;
+
+    @Column(name = "cloudinary_public_id")
+    private String cloudinaryPublicId;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "parent_id")
@@ -75,4 +80,3 @@ public class Category {
         updatedAt = LocalDateTime.now();
     }
 }
-

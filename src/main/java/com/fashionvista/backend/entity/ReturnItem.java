@@ -46,6 +46,20 @@ public class ReturnItem {
     @Column(name = "line_total", nullable = false, precision = 10, scale = 2)
     private BigDecimal lineTotal;
 
+    @jakarta.persistence.Enumerated(jakarta.persistence.EnumType.STRING)
+    @Column(nullable = true)
+    @Builder.Default
+    private ReturnStatus status = ReturnStatus.REQUESTED;
+
+    @Column(name = "accepted_quantity")
+    private Integer acceptedQuantity;
+
+    @Column(name = "is_restocked")
+    private Boolean restocked;
+
+    @Column(name = "restocked_quantity")
+    private Integer restockedQuantity;
+
     @Column(nullable = false, updatable = false)
     private LocalDateTime createdAt;
 
@@ -54,5 +68,3 @@ public class ReturnItem {
         createdAt = LocalDateTime.now();
     }
 }
-
-

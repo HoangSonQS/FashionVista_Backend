@@ -30,18 +30,17 @@ public class AdminUserController {
 
     @GetMapping
     public Page<AdminUserListResponse> getAllUsers(
-        @RequestParam(required = false) String search,
-        @RequestParam(required = false) UserRole role,
-        @RequestParam(required = false) Boolean active,
-        @RequestParam(defaultValue = "0") int page,
-        @RequestParam(defaultValue = "20") int size,
-        @RequestParam(defaultValue = "createdAt") String sortBy,
-        @RequestParam(defaultValue = "DESC") String sortDir
-    ) {
+            @RequestParam(required = false) String search,
+            @RequestParam(required = false) UserRole role,
+            @RequestParam(required = false) Boolean active,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size,
+            @RequestParam(defaultValue = "createdAt") String sortBy,
+            @RequestParam(defaultValue = "DESC") String sortDir) {
         try {
             Sort sort = sortDir.equalsIgnoreCase("ASC")
-                ? Sort.by(sortBy).ascending()
-                : Sort.by(sortBy).descending();
+                    ? Sort.by(sortBy).ascending()
+                    : Sort.by(sortBy).descending();
             Pageable pageable = PageRequest.of(page, size, sort);
             return adminUserService.getAllUsers(search, role, active, pageable);
         } catch (Exception e) {
@@ -56,17 +55,15 @@ public class AdminUserController {
 
     @PatchMapping("/{userId}/status")
     public AdminUserListResponse updateUserStatus(
-        @PathVariable Long userId,
-        @RequestBody @Valid UpdateUserStatusRequest request
-    ) {
+            @PathVariable Long userId,
+            @RequestBody @Valid UpdateUserStatusRequest request) {
         return adminUserService.updateUserStatus(userId, request);
     }
 
     @PatchMapping("/{userId}/role")
     public AdminUserListResponse updateUserRole(
-        @PathVariable Long userId,
-        @RequestBody @Valid UpdateUserRoleRequest request
-    ) {
+            @PathVariable Long userId,
+            @RequestBody @Valid UpdateUserRoleRequest request) {
         return adminUserService.updateUserRole(userId, request);
     }
 
@@ -77,36 +74,39 @@ public class AdminUserController {
 
     @PostMapping("/{userId}/loyalty-points")
     public AdminUserListResponse addLoyaltyPoints(
-        @PathVariable Long userId,
-        @RequestBody @Valid AddLoyaltyPointsRequest request
-    ) {
+            @PathVariable Long userId,
+            @RequestBody @Valid AddLoyaltyPointsRequest request) {
         return adminUserService.addLoyaltyPoints(userId, request);
+    }
+
+    @PostMapping
+    public AdminUserListResponse createUser(@RequestBody @Valid CreateUserRequest request) {
+        return adminUserService.createUser(request);
     }
 
     @PostMapping("/{userId}/reset-password")
     public ResponseEntity<java.util.Map<String, String>> resetPassword(
-        @PathVariable Long userId,
-        @RequestBody @Valid ResetPasswordRequest request
-    ) {
-        String tempPassword = adminUserService.resetPassword(userId, request);
+            @PathVariable Long userId,
+            @RequestBody @Valid AdminResetPasswordRequest request) {
+        String password = adminUserService.resetPassword(userId, request);
         return ResponseEntity.ok(
-            java.util.Map.of("temporaryPassword", tempPassword, "emailSent", "false")
-        );
+                java.util.Map.of("password", password, "emailSent", "false"));
     }
 
     @GetMapping("/export")
     public ResponseEntity<byte[]> exportUsers(
-        @RequestParam(required = false) String search,
-        @RequestParam(required = false) UserRole role,
-        @RequestParam(required = false) Boolean active
-    ) {
-        org.springframework.data.domain.Pageable pageable = org.springframework.data.domain.PageRequest.of(0, Integer.MAX_VALUE);
-        org.springframework.data.domain.Page<AdminUserListResponse> users = adminUserService.getAllUsers(search, role, active, pageable);
-        
+            @RequestParam(required = false) String search,
+            @RequestParam(required = false) UserRole role,
+            @RequestParam(required = false) Boolean active) {
+        org.springframework.data.domain.Pageable pageable = org.springframework.data.domain.PageRequest.of(0,
+                Integer.MAX_VALUE);
+        org.springframework.data.domain.Page<AdminUserListResponse> users = adminUserService.getAllUsers(search, role,
+                active, pageable);
+
         // Tạo CSV content
         StringBuilder csv = new StringBuilder();
         csv.append("Email,Họ tên,Số điện thoại,Vai trò,Trạng thái,Số đơn hàng,Ngày tạo\n");
-        
+
         for (AdminUserListResponse user : users.getContent()) {
             csv.append(escapeCsv(user.getEmail())).append(",");
             csv.append(escapeCsv(user.getFullName() != null ? user.getFullName() : "")).append(",");
@@ -116,20 +116,20 @@ public class AdminUserController {
             csv.append(user.getOrderCount()).append(",");
             csv.append(user.getCreatedAt().toString()).append("\n");
         }
-        
+
         byte[] bytes = csv.toString().getBytes(java.nio.charset.StandardCharsets.UTF_8);
         return ResponseEntity.ok()
-            .header("Content-Type", "text/csv; charset=UTF-8")
-            .header("Content-Disposition", "attachment; filename=users_" + java.time.LocalDate.now() + ".csv")
-            .body(bytes);
+                .header("Content-Type", "text/csv; charset=UTF-8")
+                .header("Content-Disposition", "attachment; filename=users_" + java.time.LocalDate.now() + ".csv")
+                .body(bytes);
     }
-    
+
     private String escapeCsv(String value) {
-        if (value == null) return "";
+        if (value == null)
+            return "";
         if (value.contains(",") || value.contains("\"") || value.contains("\n")) {
             return "\"" + value.replace("\"", "\"\"") + "\"";
         }
         return value;
     }
 }
-

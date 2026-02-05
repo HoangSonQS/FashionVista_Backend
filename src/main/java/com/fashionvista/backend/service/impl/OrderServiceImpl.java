@@ -1,6 +1,5 @@
 package com.fashionvista.backend.service.impl;
 
-import com.fashionvista.backend.dto.CartResponse;
 import com.fashionvista.backend.dto.CheckoutRequest;
 import com.fashionvista.backend.dto.OrderItemResponse;
 import com.fashionvista.backend.dto.OrderResponse;
@@ -30,6 +29,7 @@ import java.math.BigDecimal;
 import java.util.List;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -38,6 +38,7 @@ import org.springframework.web.context.request.ServletRequestAttributes;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class OrderServiceImpl implements OrderService {
 
     private final OrderRepository orderRepository;
@@ -55,7 +56,7 @@ public class OrderServiceImpl implements OrderService {
     @Transactional
     public OrderResponse checkout(CheckoutRequest request) {
         Cart cart = cartRepository.findByUser(userContextService.getCurrentUser())
-            .orElseThrow(() -> new IllegalArgumentException("Giỏ hàng trống."));
+                .orElseThrow(() -> new IllegalArgumentException("Giỏ hàng trống."));
 
         if (cart.getItems().isEmpty()) {
             throw new IllegalArgumentException("Giỏ hàng chưa có sản phẩm nào.");
@@ -66,59 +67,81 @@ public class OrderServiceImpl implements OrderService {
 
         String orderNumber = generateOrderNumber();
         Order order = Order.builder()
-            .orderNumber(orderNumber)
-            .user(userContextService.getCurrentUser())
-            .status(com.fashionvista.backend.entity.OrderStatus.PENDING)
-            .paymentMethod(request.getPaymentMethod())
-            .paymentStatus(PaymentStatus.PENDING)
-            .shippingMethod(request.getShippingMethod())
-            .shippingAddress(buildShippingSnapshot(request))
-            .subtotal(BigDecimal.ZERO)
-            .shippingFee(BigDecimal.ZERO)
-            .discount(BigDecimal.ZERO)
-            .total(BigDecimal.ZERO)
-            .build();
+                .orderNumber(orderNumber)
+                .user(userContextService.getCurrentUser())
+                .status(com.fashionvista.backend.entity.OrderStatus.PENDING)
+                .paymentMethod(request.getPaymentMethod())
+                .paymentStatus(PaymentStatus.PENDING)
+                .shippingMethod(request.getShippingMethod())
+                .shippingAddress(buildShippingSnapshot(request))
+                .billingAddress(buildShippingSnapshot(request)) // Mặc định billing = shipping nếu không có field riêng
+                .subtotal(BigDecimal.ZERO)
+                .shippingFee(BigDecimal.ZERO)
+                .discount(BigDecimal.ZERO)
+                .total(BigDecimal.ZERO)
+                .build();
 
         List<OrderItem> orderItems = cart.getItems().stream()
-            .map(item -> toOrderItem(order, item))
-            .toList();
+                .map(item -> toOrderItem(order, item))
+                .toList();
 
         order.setItems(orderItems);
-        CartResponse cartResponse = cartService.getMyCart();
+        // Tính subtotal từ cart đã load thay vì query lại
+        BigDecimal subtotal = cart.getItems().stream()
+                .map(item -> item.getPrice().multiply(BigDecimal.valueOf(item.getQuantity())))
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        order.setSubtotal(subtotal);
 
-        order.setSubtotal(cartResponse.getSubtotal());
-
-        // Tính phí ship trước khi áp dụng voucher (voucher hiện tại chỉ giảm trên subtotal)
-        BigDecimal shippingFee = calculateShippingFee(cartResponse.getSubtotal(), request.getShippingMethod());
+        // Tính phí ship trước khi áp dụng voucher (voucher hiện tại chỉ giảm trên
+        // subtotal)
+        BigDecimal shippingFee = calculateShippingFee(subtotal, request.getShippingMethod());
         order.setShippingFee(shippingFee);
 
         // Áp dụng voucher (nếu có)
         BigDecimal discount = BigDecimal.ZERO;
+        String voucherCode = null;
         if (request.getVoucherCode() != null && !request.getVoucherCode().isBlank()) {
+            voucherCode = request.getVoucherCode().trim();
             discount = voucherService.validateAndCalculateDiscount(
-                request.getVoucherCode(),
-                order.getSubtotal()
-            );
+                    voucherCode,
+                    order.getSubtotal());
         }
         order.setDiscount(discount);
         order.setTotal(order.getSubtotal().add(shippingFee).subtract(discount));
 
         Order saved = orderRepository.save(order);
 
+        // Tăng usedCount của voucher sau khi đơn hàng được tạo thành công
+        if (voucherCode != null && !voucherCode.isBlank()) {
+            try {
+                voucherService.applyVoucher(voucherCode);
+            } catch (Exception e) {
+                // Log lỗi nhưng không rollback đơn hàng
+                // Voucher có thể đã bị xóa hoặc thay đổi sau khi validate
+                // Đơn hàng vẫn được tạo thành công
+            }
+        }
+
         Payment payment = Payment.builder()
-            .order(saved)
-            .paymentMethod(request.getPaymentMethod())
-            .paymentStatus(PaymentStatus.PENDING)
-            .amount(saved.getTotal())
-            .build();
+                .order(saved)
+                .paymentMethod(request.getPaymentMethod())
+                .paymentStatus(PaymentStatus.PENDING)
+                .amount(saved.getTotal())
+                .build();
         paymentRepository.save(payment);
 
-        // Decrease stock
-        cart.getItems().forEach(this::decreaseStock);
+        // Với VNPay: chỉ decrease stock khi payment success (trong callback)
+        // Với COD: decrease stock ngay để reserve hàng
+        if (request.getPaymentMethod() != PaymentMethod.VNPAY) {
+            // Decrease stock cho COD và các phương thức khác
+            cart.getItems().forEach(this::decreaseStock);
+        }
+        // Note: Với VNPay, stock sẽ được decrease trong VnPayController khi payment
+        // success
 
         cartService.clearCart();
 
-        // Gửi email xác nhận đơn hàng
+        // Gửi email xác nhận đơn hàng async (không block checkout)
         try {
             emailService.sendOrderConfirmationEmail(saved);
         } catch (Exception e) {
@@ -137,16 +160,16 @@ public class OrderServiceImpl implements OrderService {
     @Transactional(readOnly = true)
     public List<OrderResponse> getMyOrders() {
         return orderRepository.findByUserOrderByCreatedAtDesc(userContextService.getCurrentUser())
-            .stream()
-            .map(this::toOrderResponse)
-            .toList();
+                .stream()
+                .map(this::toOrderResponse)
+                .toList();
     }
 
     @Override
     @Transactional(readOnly = true)
     public OrderResponse getOrder(String orderNumber) {
         Order order = orderRepository.findByOrderNumber(orderNumber)
-            .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy đơn hàng."));
+                .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy đơn hàng."));
 
         if (!order.getUser().getId().equals(userContextService.getCurrentUser().getId())) {
             throw new IllegalArgumentException("Bạn không có quyền xem đơn hàng này.");
@@ -159,7 +182,7 @@ public class OrderServiceImpl implements OrderService {
     @Transactional
     public OrderResponse cancelMyOrder(String orderNumber) {
         Order order = orderRepository.findByOrderNumber(orderNumber)
-            .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy đơn hàng."));
+                .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy đơn hàng."));
 
         if (!order.getUser().getId().equals(userContextService.getCurrentUser().getId())) {
             throw new IllegalArgumentException("Bạn không có quyền hủy đơn hàng này.");
@@ -170,8 +193,8 @@ public class OrderServiceImpl implements OrderService {
         }
 
         if (!(order.getStatus() == OrderStatus.PENDING
-            || order.getStatus() == OrderStatus.CONFIRMED
-            || order.getStatus() == OrderStatus.PROCESSING)) {
+                || order.getStatus() == OrderStatus.CONFIRMED
+                || order.getStatus() == OrderStatus.PROCESSING)) {
             throw new IllegalArgumentException("Chỉ có thể hủy đơn khi đang chờ duyệt/xác nhận/xử lý.");
         }
 
@@ -191,6 +214,81 @@ public class OrderServiceImpl implements OrderService {
         return toOrderResponse(saved);
     }
 
+    @Override
+    @Transactional
+    public OrderResponse repay(String orderNumber) {
+        Order order = orderRepository.findByOrderNumber(orderNumber)
+                .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy đơn hàng."));
+
+        if (!order.getUser().getId().equals(userContextService.getCurrentUser().getId())) {
+            throw new IllegalArgumentException("Bạn không có quyền thao tác trên đơn hàng này.");
+        }
+
+        if (order.getPaymentMethod() != PaymentMethod.VNPAY) {
+            throw new IllegalArgumentException("Chỉ hỗ trợ thanh toán lại cho phương thức VNPay.");
+        }
+
+        if (order.getPaymentStatus() == PaymentStatus.PAID) {
+            throw new IllegalArgumentException("Đơn hàng đã được thanh toán.");
+        }
+
+        String paymentUrl = vnPayService.createPaymentUrl(order, resolveClientIp());
+        return toOrderResponse(order, paymentUrl);
+    }
+
+    @Override
+    @Transactional
+    public OrderResponse changePaymentMethod(String orderNumber, PaymentMethod method) {
+        Order order = orderRepository.findByOrderNumber(orderNumber)
+                .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy đơn hàng."));
+
+        if (!order.getUser().getId().equals(userContextService.getCurrentUser().getId())) {
+            throw new IllegalArgumentException("Bạn không có quyền thao tác trên đơn hàng này.");
+        }
+
+        if (order.getPaymentStatus() == PaymentStatus.PAID) {
+            throw new IllegalArgumentException("Đơn hàng đã được thanh toán.");
+        }
+
+        if (order.getStatus() != OrderStatus.PENDING) {
+            throw new IllegalArgumentException("Chỉ có thể đổi phương thức khi đơn hàng đang chờ duyệt.");
+        }
+
+        PaymentMethod oldMethod = order.getPaymentMethod();
+        if (oldMethod == method) {
+            return toOrderResponse(order);
+        }
+
+        order.setPaymentMethod(method);
+
+        // Nếu chuyển từ VNPay sang COD (hoặc phương thức khác trừ kho ngay)
+        if (oldMethod == PaymentMethod.VNPAY && method != PaymentMethod.VNPAY) {
+            decreaseStockForOrder(order);
+        }
+
+        Order saved = orderRepository.save(order);
+        return toOrderResponse(saved);
+    }
+
+    @Override
+    @Transactional
+    public void decreaseStockForOrder(Order order) {
+        // Decrease stock cho tất cả items trong order
+        order.getItems().forEach(orderItem -> {
+            if (orderItem.getVariant() != null) {
+                int affected = productVariantRepository.decreaseStockIfEnough(
+                        orderItem.getVariant().getId(),
+                        orderItem.getQuantity());
+                if (affected == 0) {
+                    // Log warning nhưng không throw - order đã được tạo rồi
+                    // Có thể xử lý sau bằng cách thông báo admin
+                    log.warn("Không thể decrease stock cho variant {} trong order {}",
+                            orderItem.getVariant().getId(), order.getOrderNumber());
+                }
+            }
+        });
+    }
+
     private void validateStock(CartItem item) {
         ProductVariant variant = item.getVariant();
         if (variant == null) {
@@ -202,24 +300,22 @@ public class OrderServiceImpl implements OrderService {
     }
 
     private void decreaseStock(CartItem item) {
-        ProductVariant variant = productVariantRepository.findById(item.getVariant().getId())
-            .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy biến thể sản phẩm."));
-        int remaining = variant.getStock() - item.getQuantity();
-        if (remaining < 0) {
-            throw new IllegalArgumentException("Sản phẩm " + variant.getSku() + " không đủ tồn kho.");
-        }
-        variant.setStock(remaining);
-        try {
-            productVariantRepository.save(variant);
-        } catch (OptimisticLockingFailureException ex) {
-            throw new IllegalStateException("Sản phẩm vừa được cập nhật. Vui lòng thử lại.", ex);
+        // Bỏ findById không cần thiết - query decreaseStockIfEnough đã check stock rồi
+        int affected = productVariantRepository.decreaseStockIfEnough(
+                item.getVariant().getId(),
+                item.getQuantity());
+
+        // Nếu không có dòng nào được update nghĩa là không còn đủ stock tại thời điểm
+        // checkout
+        if (affected == 0) {
+            throw new IllegalArgumentException("Sản phẩm " + item.getVariant().getSku() + " không đủ tồn kho.");
         }
     }
 
     private void restockItems(Order order) {
         order.getItems().forEach(orderItem -> {
             ProductVariant variant = productVariantRepository.findById(orderItem.getVariant().getId())
-                .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy biến thể sản phẩm."));
+                    .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy biến thể sản phẩm."));
             variant.setStock(variant.getStock() + orderItem.getQuantity());
             try {
                 productVariantRepository.save(variant);
@@ -231,18 +327,18 @@ public class OrderServiceImpl implements OrderService {
 
     private OrderItem toOrderItem(Order order, CartItem item) {
         return OrderItem.builder()
-            .order(order)
-            .product(item.getProduct())
-            .variant(item.getVariant())
-            .productName(item.getProduct().getName())
-            .productImage(item.getProduct().getImages().stream()
-                .findFirst()
-                .map(image -> image.getUrl())
-                .orElse(null))
-            .price(item.getPrice())
-            .quantity(item.getQuantity())
-            .subtotal(item.getPrice().multiply(BigDecimal.valueOf(item.getQuantity())))
-            .build();
+                .order(order)
+                .product(item.getProduct())
+                .variant(item.getVariant())
+                .productName(item.getProduct().getName())
+                .productImage(item.getProduct().getImages().stream()
+                        .findFirst()
+                        .map(image -> image.getUrl())
+                        .orElse(null))
+                .price(item.getPrice())
+                .quantity(item.getQuantity())
+                .subtotal(item.getPrice().multiply(BigDecimal.valueOf(item.getQuantity())))
+                .build();
     }
 
     private OrderResponse toOrderResponse(Order order) {
@@ -251,18 +347,18 @@ public class OrderServiceImpl implements OrderService {
 
     private OrderResponse toOrderResponse(Order order, String paymentUrl) {
         List<OrderItemResponse> itemResponses = order.getItems().stream()
-            .map(item -> OrderItemResponse.builder()
-                .id(item.getId())
-                .productName(item.getProductName())
-                .productSlug(item.getProduct().getSlug())
-                .productImage(item.getProductImage())
-                .size(item.getVariant() != null ? item.getVariant().getSize() : null)
-                .color(item.getVariant() != null ? item.getVariant().getColor() : null)
-                .quantity(item.getQuantity())
-                .price(item.getPrice())
-                .subtotal(item.getSubtotal())
-                .build())
-            .toList();
+                .map(item -> OrderItemResponse.builder()
+                        .id(item.getId())
+                        .productName(item.getProductName())
+                        .productSlug(item.getProduct().getSlug())
+                        .productImage(item.getProductImage())
+                        .size(item.getVariant() != null ? item.getVariant().getSize() : null)
+                        .color(item.getVariant() != null ? item.getVariant().getColor() : null)
+                        .quantity(item.getQuantity())
+                        .price(item.getPrice())
+                        .subtotal(item.getSubtotal())
+                        .build())
+                .toList();
 
         String trackingUrl = null;
         if (order.getTrackingNumber() != null && !order.getTrackingNumber().isBlank()) {
@@ -282,23 +378,23 @@ public class OrderServiceImpl implements OrderService {
         }
 
         return OrderResponse.builder()
-            .id(order.getId())
-            .orderNumber(order.getOrderNumber())
-            .status(order.getStatus())
-            .paymentMethod(order.getPaymentMethod())
-            .paymentStatus(order.getPaymentStatus())
-            .shippingMethod(order.getShippingMethod())
-            .shippingAddress(order.getShippingAddress())
-            .subtotal(order.getSubtotal())
-            .shippingFee(order.getShippingFee())
-            .discount(order.getDiscount())
-            .total(order.getTotal())
-            .createdAt(order.getCreatedAt())
-            .items(itemResponses)
-            .paymentUrl(paymentUrl)
-            .trackingNumber(order.getTrackingNumber())
-            .trackingUrl(trackingUrl)
-            .build();
+                .id(order.getId())
+                .orderNumber(order.getOrderNumber())
+                .status(order.getStatus())
+                .paymentMethod(order.getPaymentMethod())
+                .paymentStatus(order.getPaymentStatus())
+                .shippingMethod(order.getShippingMethod())
+                .shippingAddress(order.getShippingAddress())
+                .subtotal(order.getSubtotal())
+                .shippingFee(order.getShippingFee())
+                .discount(order.getDiscount())
+                .total(order.getTotal())
+                .createdAt(order.getCreatedAt())
+                .items(itemResponses)
+                .paymentUrl(paymentUrl)
+                .trackingNumber(order.getTrackingNumber())
+                .trackingUrl(trackingUrl)
+                .build();
     }
 
     private BigDecimal calculateShippingFee(BigDecimal subtotal, ShippingMethod method) {
@@ -347,7 +443,8 @@ public class OrderServiceImpl implements OrderService {
 
     private String resolveClientIp() {
         try {
-            ServletRequestAttributes attributes = (ServletRequestAttributes) RequestContextHolder.getRequestAttributes();
+            ServletRequestAttributes attributes = (ServletRequestAttributes) RequestContextHolder
+                    .getRequestAttributes();
             if (attributes == null) {
                 return "127.0.0.1";
             }
@@ -362,4 +459,3 @@ public class OrderServiceImpl implements OrderService {
         }
     }
 }
-

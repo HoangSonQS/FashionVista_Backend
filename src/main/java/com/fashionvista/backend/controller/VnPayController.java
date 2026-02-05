@@ -3,11 +3,12 @@ package com.fashionvista.backend.controller;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fashionvista.backend.entity.Order;
-import com.fashionvista.backend.entity.OrderStatus;
 import com.fashionvista.backend.entity.Payment;
 import com.fashionvista.backend.entity.PaymentStatus;
 import com.fashionvista.backend.repository.OrderRepository;
 import com.fashionvista.backend.repository.PaymentRepository;
+import com.fashionvista.backend.service.LoyaltyService;
+import com.fashionvista.backend.service.OrderService;
 import com.fashionvista.backend.service.VnPayService;
 import java.net.URI;
 import java.util.HashMap;
@@ -37,6 +38,8 @@ public class VnPayController {
     private final OrderRepository orderRepository;
     private final PaymentRepository paymentRepository;
     private final ObjectMapper objectMapper;
+    private final LoyaltyService loyaltyService;
+    private final OrderService orderService;
 
     @Value("${app.frontend.url}")
     private String frontendUrl;
@@ -46,14 +49,17 @@ public class VnPayController {
     public ResponseEntity<Void> handleReturn(@RequestParam Map<String, String> params) {
         Map<String, Object> result = processPaymentResult(params, true);
         boolean success = (boolean) result.getOrDefault("success", false);
+        String orderNumber = (String) result.get("orderNumber");
 
         String redirectUrl = frontendUrl;
-        // Thêm query đơn giản để FE có thể hiển thị toast nếu muốn, nhưng vẫn về trang chủ
-        if (success) {
-            redirectUrl = frontendUrl + "/?payment=success";
-        } else {
-            redirectUrl = frontendUrl + "/?payment=failed";
+        // Điều hướng về trang kết quả thanh toán chuyên biệt trên FE
+        StringBuilder sb = new StringBuilder(frontendUrl)
+            .append("/checkout/")
+            .append(success ? "success" : "failed");
+        if (orderNumber != null) {
+            sb.append("?orderNumber=").append(orderNumber);
         }
+        redirectUrl = sb.toString();
 
         HttpHeaders headers = new HttpHeaders();
         headers.setLocation(URI.create(redirectUrl));
@@ -114,9 +120,7 @@ public class VnPayController {
 
         if (success) {
             order.setPaymentStatus(PaymentStatus.PAID);
-            if (order.getStatus() == OrderStatus.PENDING) {
-                order.setStatus(OrderStatus.CONFIRMED);
-            }
+            // Giữ nguyên status PENDING để admin duyệt sau (không tự động chuyển sang CONFIRMED)
             payment.setPaymentStatus(PaymentStatus.PAID);
         } else {
             order.setPaymentStatus(PaymentStatus.FAILED);
@@ -132,6 +136,14 @@ public class VnPayController {
 
         orderRepository.save(order);
         paymentRepository.save(payment);
+
+        // Nếu thanh toán VNPay thành công thì decrease stock và tích điểm
+        if (success) {
+            // Decrease stock cho order (vì chưa decrease khi checkout)
+            orderService.decreaseStockForOrder(order);
+            // Tích điểm loyalty
+            loyaltyService.awardPointsForOrder(order);
+        }
 
         response.put("success", success);
         response.put("message", success ? "Thanh toán VNPay thành công." : "Thanh toán VNPay thất bại.");

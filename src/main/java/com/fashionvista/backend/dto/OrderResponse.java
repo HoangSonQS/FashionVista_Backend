@@ -21,14 +21,24 @@ public class OrderResponse {
     PaymentStatus paymentStatus;
     ShippingMethod shippingMethod;
     String shippingAddress;
+    String billingAddress;
     BigDecimal subtotal;
     BigDecimal shippingFee;
     BigDecimal discount;
+    BigDecimal voucherDiscount;
     BigDecimal total;
     LocalDateTime createdAt;
     List<OrderItemResponse> items;
     String paymentUrl;
     String trackingNumber; // Mã vận đơn
     String trackingUrl; // Link tracking (GHN/GHTK)
+
+    // Extra info
+    String customerEmail;
+    String customerPhone;
+    String customerGroup;
+    String transactionId;
+
+    List<OrderHistoryItemResponse> history;
 }
 

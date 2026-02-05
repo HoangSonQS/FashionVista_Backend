@@ -13,6 +13,6 @@ public class ReturnItemDto {
     private Integer quantity;
     private BigDecimal unitPrice;
     private BigDecimal lineTotal;
+    private com.fashionvista.backend.entity.ReturnStatus status;
+    private Integer acceptedQuantity;
 }
-
-
