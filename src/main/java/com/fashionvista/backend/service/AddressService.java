@@ -56,8 +56,8 @@ public class AddressService {
 
     public List<AddressOptionDto> getProvinces() {
         return provinces.stream()
-            .map(AddressService::toOption)
-            .toList();
+                .map(AddressService::toOption)
+                .toList();
     }
 
     public List<AddressOptionDto> getDistrictsByProvince(String provinceCode) {
@@ -69,8 +69,8 @@ public class AddressService {
             return Collections.emptyList();
         }
         return province.getDistricts().stream()
-            .map(AddressService::toOption)
-            .toList();
+                .map(AddressService::toOption)
+                .toList();
     }
 
     public List<AddressOptionDto> getWardsByDistrict(String districtCode) {
@@ -82,17 +82,17 @@ public class AddressService {
             return Collections.emptyList();
         }
         return district.getWards().stream()
-            .map(AddressService::toOption)
-            .toList();
+                .map(AddressService::toOption)
+                .toList();
     }
 
     private static AddressOptionDto toOption(BaseAdministrativeUnit unit) {
         return AddressOptionDto.builder()
-            .code(unit.getCode())
-            .name(unit.getName())
-            .fullName(unit.getFullName())
-            .codeName(unit.getCodeName())
-            .build();
+                .code(unit.getCode())
+                .name(unit.getName())
+                .fullName(unit.getFullName())
+                .codeName(unit.getCodeName())
+                .build();
     }
 
     @Getter
@@ -135,7 +135,6 @@ public class AddressService {
 
     @Getter
     @JsonIgnoreProperties(ignoreUnknown = true)
-    private static class WardData extends BaseAdministrativeUnit { }
+    private static class WardData extends BaseAdministrativeUnit {
+    }
 }
-
-
