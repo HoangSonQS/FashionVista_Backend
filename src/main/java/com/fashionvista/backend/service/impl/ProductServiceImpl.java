@@ -163,25 +163,42 @@ public class ProductServiceImpl implements ProductService {
 
             Product saved = productRepository.save(product);
 
-            if (images != null) {
-                int index = 0;
-                for (MultipartFile imageFile : images) {
-                    if (imageFile == null || imageFile.isEmpty()) {
-                        continue;
+            if (images != null && !images.isEmpty()) {
+                // Filter valid files
+                List<MultipartFile> validFiles = images.stream()
+                        .filter(file -> file != null && !file.isEmpty())
+                        .toList();
+
+                if (!validFiles.isEmpty()) {
+                    // Upload all images to Cloudinary in PARALLEL (much faster)
+                    List<java.util.concurrent.CompletableFuture<CloudinaryService.CloudinaryUploadResult>> uploadFutures = validFiles
+                            .stream()
+                            .map(file -> java.util.concurrent.CompletableFuture
+                                    .supplyAsync(() -> cloudinaryService.uploadImage(file)))
+                            .toList();
+
+                    // Wait for all uploads to complete
+                    List<CloudinaryService.CloudinaryUploadResult> uploadResults = uploadFutures.stream()
+                            .map(java.util.concurrent.CompletableFuture::join)
+                            .toList();
+
+                    // Collect public IDs for cleanup on error
+                    uploadResults.forEach(result -> uploadedPublicIds.add(result.publicId()));
+
+                    // Create all ProductImage entities
+                    for (int i = 0; i < uploadResults.size(); i++) {
+                        CloudinaryService.CloudinaryUploadResult uploadResult = uploadResults.get(i);
+                        ProductImage productImage = ProductImage.builder()
+                                .product(saved)
+                                .url(uploadResult.secureUrl())
+                                .cloudinaryPublicId(uploadResult.publicId())
+                                .isPrimary(i == 0)
+                                .order(i)
+                                .build();
+                        saved.getImages().add(productImage);
                     }
-                    CloudinaryService.CloudinaryUploadResult uploadResult = cloudinaryService.uploadImage(imageFile);
-                    uploadedPublicIds.add(uploadResult.publicId());
-                    ProductImage productImage = ProductImage.builder()
-                            .product(saved)
-                            .url(uploadResult.secureUrl())
-                            .cloudinaryPublicId(uploadResult.publicId())
-                            .isPrimary(index == 0)
-                            .order(index)
-                            .build();
-                    saved.getImages().add(productImage);
-                    index++;
+                    saved = productRepository.save(saved);
                 }
-                saved = productRepository.save(saved);
             }
 
             return getProductBySlug(saved.getSlug());
@@ -271,22 +288,43 @@ public class ProductServiceImpl implements ProductService {
                 removeProductImages(product, request.getRemovedImageIds());
             }
 
-            if (images != null) {
-                int nextOrder = product.getImages().size();
-                for (MultipartFile imageFile : images) {
-                    if (imageFile == null || imageFile.isEmpty()) {
-                        continue;
+            if (images != null && !images.isEmpty()) {
+                // Filter valid files
+                List<MultipartFile> validFiles = images.stream()
+                        .filter(file -> file != null && !file.isEmpty())
+                        .toList();
+
+                if (!validFiles.isEmpty()) {
+                    int nextOrder = product.getImages().size();
+                    boolean isFirstImage = product.getImages().isEmpty();
+
+                    // Upload all images to Cloudinary in PARALLEL (much faster)
+                    List<java.util.concurrent.CompletableFuture<CloudinaryService.CloudinaryUploadResult>> uploadFutures = validFiles
+                            .stream()
+                            .map(file -> java.util.concurrent.CompletableFuture
+                                    .supplyAsync(() -> cloudinaryService.uploadImage(file)))
+                            .toList();
+
+                    // Wait for all uploads to complete
+                    List<CloudinaryService.CloudinaryUploadResult> uploadResults = uploadFutures.stream()
+                            .map(java.util.concurrent.CompletableFuture::join)
+                            .toList();
+
+                    // Collect public IDs for cleanup on error
+                    uploadResults.forEach(result -> uploadedPublicIds.add(result.publicId()));
+
+                    // Create all ProductImage entities
+                    for (int i = 0; i < uploadResults.size(); i++) {
+                        CloudinaryService.CloudinaryUploadResult uploadResult = uploadResults.get(i);
+                        ProductImage productImage = ProductImage.builder()
+                                .product(product)
+                                .url(uploadResult.secureUrl())
+                                .cloudinaryPublicId(uploadResult.publicId())
+                                .isPrimary(isFirstImage && i == 0)
+                                .order(nextOrder + i)
+                                .build();
+                        product.getImages().add(productImage);
                     }
-                    CloudinaryService.CloudinaryUploadResult uploadResult = cloudinaryService.uploadImage(imageFile);
-                    uploadedPublicIds.add(uploadResult.publicId());
-                    ProductImage productImage = ProductImage.builder()
-                            .product(product)
-                            .url(uploadResult.secureUrl())
-                            .cloudinaryPublicId(uploadResult.publicId())
-                            .isPrimary(product.getImages().isEmpty() && nextOrder == 0)
-                            .order(nextOrder++)
-                            .build();
-                    product.getImages().add(productImage);
                 }
             }
 
