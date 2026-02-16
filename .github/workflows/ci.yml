@@ -72,6 +72,7 @@ jobs:
               --restart unless-stopped \
               --pull always \
               -p 127.0.0.1:8085:8085 \
+              --add-host=host.docker.internal:host-gateway \
               -v /home/deploy/fashionvista/uploads:/app/uploads \
               --env-file /home/deploy/fashionvista/backend/.env \
               ${{ secrets.DOCKER_USERNAME }}/fashionvista-backend:sha-${{ github.sha }}
