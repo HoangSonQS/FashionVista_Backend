@@ -61,9 +61,6 @@ jobs:
             docker stop fashionvista-backend || true
             docker rm fashionvista-backend || true
             
-            # Pull new image
-            docker pull ${{ secrets.DOCKER_USERNAME }}/fashionvista-backend:sha-${{ github.sha }}
-            
             # Run new container
             # Using --env-file for security and --restart for resilience
             # Binding to 127.0.0.1:8085 to prevent external access (Nginx proxy only)

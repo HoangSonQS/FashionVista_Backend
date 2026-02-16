@@ -59,6 +59,8 @@ public class SecurityConfig {
                         .requestMatchers("/api/admin/**").hasRole("ADMIN")
                         // Các endpoint review và wishlist yêu cầu authenticated
                         .requestMatchers("/api/reviews/**", "/api/me/reviews", "/api/wishlist/**").authenticated()
+                        // Cho phép public access health check cho CD pipeline
+                        .requestMatchers("/actuator/health").permitAll()
                         .anyRequest().authenticated())
                 .oauth2ResourceServer(oauth2 -> oauth2
                         .jwt(jwt -> jwt.jwtAuthenticationConverter(jwtAuthenticationConverter())));
