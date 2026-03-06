@@ -99,8 +99,13 @@ public class AdminProductVariantServiceImpl implements AdminProductVariantServic
             throw new IllegalArgumentException("SKU đã tồn tại: " + request.getSku());
         }
 
-        // Use product price if variant price is not provided
-        BigDecimal price = request.getPrice() != null ? request.getPrice() : product.getPrice();
+        // Rule 1: Inherit product prices when variant prices not explicitly provided
+        BigDecimal price = (request.getPrice() != null && request.getPrice().compareTo(java.math.BigDecimal.ZERO) > 0)
+                ? request.getPrice()
+                : product.getPrice();
+        BigDecimal compareAtPrice = request.getCompareAtPrice() != null
+                ? request.getCompareAtPrice()
+                : product.getCompareAtPrice();
 
         ProductVariant variant = ProductVariant.builder()
                 .product(product)
@@ -108,6 +113,7 @@ public class AdminProductVariantServiceImpl implements AdminProductVariantServic
                 .color(request.getColor())
                 .sku(request.getSku())
                 .price(price)
+                .compareAtPrice(compareAtPrice)
                 .stock(request.getStock())
                 .isActive(request.isActive())
                 .build();
@@ -137,6 +143,9 @@ public class AdminProductVariantServiceImpl implements AdminProductVariantServic
         }
         if (request.getPrice() != null) {
             variant.setPrice(request.getPrice());
+        }
+        if (request.getCompareAtPrice() != null) {
+            variant.setCompareAtPrice(request.getCompareAtPrice());
         }
         if (request.getActive() != null) {
             variant.setActive(request.getActive());
@@ -196,6 +205,7 @@ public class AdminProductVariantServiceImpl implements AdminProductVariantServic
                 .color(variant.getColor())
                 .sku(variant.getSku())
                 .price(variant.getPrice())
+                .compareAtPrice(variant.getCompareAtPrice())
                 .stock(variant.getStock())
                 .active(variant.isActive())
                 .createdAt(variant.getCreatedAt())

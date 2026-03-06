@@ -26,6 +26,7 @@ public class AdminProductVariantCreateRequest {
 
     private BigDecimal price; // Optional, nếu null sẽ dùng giá của product
 
+    private BigDecimal compareAtPrice; // Optional, nếu null sẽ dùng giá gốc của product
+
     private boolean active = true;
 }
-

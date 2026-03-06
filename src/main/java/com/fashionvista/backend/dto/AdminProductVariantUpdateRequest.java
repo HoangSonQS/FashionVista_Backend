@@ -21,6 +21,7 @@ public class AdminProductVariantUpdateRequest {
 
     private BigDecimal price; // Optional
 
+    private BigDecimal compareAtPrice; // Optional
+
     private Boolean active;
 }
-

@@ -16,9 +16,9 @@ public class AdminProductVariantResponse {
     String color;
     String sku;
     BigDecimal price;
+    BigDecimal compareAtPrice;
     Integer stock;
     boolean active;
     LocalDateTime createdAt;
     LocalDateTime updatedAt;
 }
-

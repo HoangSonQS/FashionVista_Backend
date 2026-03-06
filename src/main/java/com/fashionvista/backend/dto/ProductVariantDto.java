@@ -13,7 +13,7 @@ public class ProductVariantDto {
     String color;
     String sku;
     BigDecimal price;
+    BigDecimal compareAtPrice;
     Integer stock;
     boolean active;
 }
-

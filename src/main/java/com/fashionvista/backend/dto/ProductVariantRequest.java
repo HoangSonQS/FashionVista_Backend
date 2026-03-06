@@ -23,6 +23,7 @@ public class ProductVariantRequest {
 
     private BigDecimal price;
 
+    private BigDecimal compareAtPrice;
+
     private boolean active = true;
 }
-

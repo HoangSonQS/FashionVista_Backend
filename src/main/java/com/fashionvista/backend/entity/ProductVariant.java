@@ -45,7 +45,10 @@ public class ProductVariant {
     private String sku;
 
     @Column(precision = 10, scale = 2)
-    private BigDecimal price; // Override product price if needed
+    private BigDecimal price; // Sale price (synced from product.price on create/update)
+
+    @Column(name = "compare_at_price", precision = 10, scale = 2)
+    private BigDecimal compareAtPrice; // Original/strikethrough price (synced from product.compareAtPrice)
 
     @Column(nullable = false)
     @Builder.Default
@@ -76,4 +79,3 @@ public class ProductVariant {
         updatedAt = LocalDateTime.now();
     }
 }
-

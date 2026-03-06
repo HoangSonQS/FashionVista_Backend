@@ -152,10 +152,12 @@ public class ProductServiceImpl implements ProductService {
                 request.getVariants()
                         .forEach(variantRequest -> product.getVariants().add(toVariantEntity(product, variantRequest)));
             } else {
+                // Rule 1: DEFAULT variant inherits product.price and product.compareAtPrice
                 product.getVariants().add(ProductVariant.builder()
                         .product(product)
                         .sku(request.getSku() + "-DEFAULT")
                         .price(request.getPrice())
+                        .compareAtPrice(request.getCompareAtPrice())
                         .stock(0)
                         .isActive(true)
                         .build());
@@ -283,6 +285,9 @@ public class ProductServiceImpl implements ProductService {
             if (request.getVariants() != null) {
                 applyVariantChanges(product, request.getVariants());
             }
+
+            // Rule 2: When product prices change, sync all variants
+            syncVariantPrices(product);
 
             if (request.getRemovedImageIds() != null && !request.getRemovedImageIds().isEmpty()) {
                 removeProductImages(product, request.getRemovedImageIds());
@@ -615,22 +620,54 @@ public class ProductServiceImpl implements ProductService {
                 .size(variant.getSize())
                 .color(variant.getColor())
                 .sku(variant.getSku())
-                .price(variant.getPrice() != null ? variant.getPrice() : variant.getProduct().getPrice())
+                .price(resolveVariantPrice(variant.getPrice(), variant.getProduct().getPrice()))
+                .compareAtPrice(variant.getCompareAtPrice())
                 .stock(variant.getStock())
                 .active(variant.isActive())
                 .build();
     }
 
     private ProductVariant toVariantEntity(Product product, ProductVariantRequest request) {
+        // Rule 1: Inherit product prices when variant price not explicitly provided
+        BigDecimal price = resolveVariantPrice(request.getPrice(), product.getPrice());
+        BigDecimal compareAtPrice = request.getCompareAtPrice() != null
+                ? request.getCompareAtPrice()
+                : product.getCompareAtPrice();
         return ProductVariant.builder()
                 .product(product)
                 .size(request.getSize())
                 .color(request.getColor())
                 .sku(request.getSku())
-                .price(request.getPrice())
+                .price(price)
+                .compareAtPrice(compareAtPrice)
                 .stock(Objects.requireNonNullElse(request.getStock(), 0))
                 .isActive(request.isActive())
                 .build();
+    }
+
+    /**
+     * Rule 1/2 helper: use variantPrice only when > 0, otherwise fallback to
+     * productPrice.
+     */
+    private BigDecimal resolveVariantPrice(BigDecimal variantPrice, BigDecimal productPrice) {
+        return (variantPrice != null && variantPrice.compareTo(BigDecimal.ZERO) > 0)
+                ? variantPrice
+                : productPrice;
+    }
+
+    /**
+     * Rule 2: Sync all variant prices to match current product.price and
+     * product.compareAtPrice.
+     * Called after every product price update.
+     */
+    private void syncVariantPrices(Product product) {
+        if (product.getVariants() == null || product.getVariants().isEmpty()) {
+            return;
+        }
+        product.getVariants().forEach(variant -> {
+            variant.setPrice(product.getPrice());
+            variant.setCompareAtPrice(product.getCompareAtPrice());
+        });
     }
 
     private void cleanupUploadedImages(List<String> publicIds) {
