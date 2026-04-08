@@ -511,6 +511,7 @@ public class ProductServiceImpl implements ProductService {
                 .totalStock(totalStock)
                 .visibleUpdatedAt(product.getVisibleUpdatedAt())
                 .thumbnailUrl(resolveThumbnail(product))
+                .hoverThumbnailUrl(resolveHoverThumbnail(product))
                 .category(product.getCategory() != null ? product.getCategory().getName() : null)
                 .build();
     }
@@ -754,11 +755,19 @@ public class ProductServiceImpl implements ProductService {
     private String resolveThumbnail(Product product) {
         return product.getImages().stream()
                 .filter(image -> image.isPrimary() && image.getUrl() != null)
-                .map(image -> image.getUrl())
+                .map(com.fashionvista.backend.entity.ProductImage::getUrl)
                 .findFirst()
                 .orElseGet(() -> product.getImages().stream()
-                        .map(image -> image.getUrl())
+                        .map(com.fashionvista.backend.entity.ProductImage::getUrl)
                         .findFirst()
                         .orElse(null));
+    }
+
+    private String resolveHoverThumbnail(Product product) {
+        return product.getImages().stream()
+                .filter(image -> !image.isPrimary() && image.getUrl() != null)
+                .map(com.fashionvista.backend.entity.ProductImage::getUrl)
+                .findFirst()
+                .orElse(null);
     }
 }

@@ -41,10 +41,16 @@ public class ProductImportExportServiceImpl implements ProductImportExportServic
         "compareAtPrice",
         "status",
         "categorySlug",
+        "description",
+        "shortDescription",
+        "featured",
+        "isVisible",
+        "tags",
         "variantSku",
         "variantSize",
         "variantColor",
         "variantPrice",
+        "variantCompareAtPrice",
         "variantStock",
         "variantActive"
     };
@@ -134,7 +140,7 @@ public class ProductImportExportServiceImpl implements ProductImportExportServic
                 if (row == null) {
                     continue;
                 }
-                grouped.computeIfAbsent(row.sku, k -> new ArrayList<>()).add(row);
+                grouped.computeIfAbsent(row.sku(), k -> new ArrayList<>()).add(row);
             }
         } catch (Exception ex) {
             errors.add("Lỗi đọc file: " + ex.getMessage());
@@ -155,9 +161,10 @@ public class ProductImportExportServiceImpl implements ProductImportExportServic
                     Product product = new Product();
                     CsvRow first = rows.get(0);
                     applyProductFields(product, first, errors);
-                    product.setStatus(parseStatus(first.status, errors, first.lineNumber));
-                    product.setFeatured(false);
-                    product.setVisible(true);
+                    product.setStatus(parseStatus(first.status(), errors, first.lineNumber()));
+                    // Parse Booleans with defaults
+                    product.setFeatured(parseBoolean(first.featured(), false));
+                    product.setVisible(parseBoolean(first.isVisible(), true));
                     product.setVisibleUpdatedAt(java.time.LocalDateTime.now());
                     List<ProductVariant> variants = buildVariants(product, rows, errors);
                     product.setVariants(variants);
@@ -168,8 +175,14 @@ public class ProductImportExportServiceImpl implements ProductImportExportServic
                     Product product = existingOpt.get();
                     CsvRow first = rows.get(0);
                     applyProductFields(product, first, errors);
-                    if (StringUtils.hasText(first.status)) {
-                        product.setStatus(parseStatus(first.status, errors, first.lineNumber));
+                    if (StringUtils.hasText(first.status())) {
+                        product.setStatus(parseStatus(first.status(), errors, first.lineNumber()));
+                    }
+                    if (StringUtils.hasText(first.featured())) {
+                        product.setFeatured(parseBoolean(first.featured(), product.isFeatured()));
+                    }
+                    if (StringUtils.hasText(first.isVisible())) {
+                        product.setVisible(parseBoolean(first.isVisible(), product.isVisible()));
                     }
                     List<ProductVariant> variants = buildVariants(product, rows, errors);
                     // Merge variants by sku
@@ -183,6 +196,7 @@ public class ProductImportExportServiceImpl implements ProductImportExportServic
                             product.getVariants().add(variant);
                         } else {
                             existing.setPrice(variant.getPrice());
+                            existing.setCompareAtPrice(variant.getCompareAtPrice());
                             existing.setStock(variant.getStock());
                             existing.setActive(variant.isActive());
                             existing.setSize(variant.getSize());
@@ -219,59 +233,86 @@ public class ProductImportExportServiceImpl implements ProductImportExportServic
             product.getCompareAtPrice() != null ? product.getCompareAtPrice().toPlainString() : "",
             product.getStatus() != null ? product.getStatus().name() : "",
             product.getCategory() != null ? product.getCategory().getSlug() : "",
+            safe(product.getDescription()),
+            safe(product.getShortDescription()),
+            String.valueOf(product.isFeatured()),
+            String.valueOf(product.isVisible()),
+            product.getTags() != null ? String.join(";", product.getTags()) : "",
             variant != null ? safe(variant.getSku()) : "",
             variant != null ? safe(variant.getSize()) : "",
             variant != null ? safe(variant.getColor()) : "",
             variant != null && variant.getPrice() != null ? variant.getPrice().toPlainString() : "",
+            variant != null && variant.getCompareAtPrice() != null ? variant.getCompareAtPrice().toPlainString() : "",
             variant != null && variant.getStock() != null ? String.valueOf(variant.getStock()) : "",
             variant != null ? String.valueOf(variant.isActive()) : ""
         );
     }
 
     private void applyProductFields(Product product, CsvRow row, List<String> errors) {
-        product.setName(row.name);
-        product.setSlug(row.slug);
-        product.setSku(row.sku);
-        product.setPrice(toBigDecimal(row.price, errors, row.lineNumber, "price"));
-        product.setCompareAtPrice(toBigDecimal(row.compareAtPrice, errors, row.lineNumber, "compareAtPrice"));
-        if (StringUtils.hasText(row.categorySlug)) {
-            Category category = categoryRepository.findBySlug(row.categorySlug)
+        product.setName(row.name());
+        product.setSlug(row.slug());
+        product.setSku(row.sku());
+        product.setPrice(toBigDecimal(row.price(), errors, row.lineNumber(), "price"));
+        product.setCompareAtPrice(toBigDecimal(row.compareAtPrice(), errors, row.lineNumber(), "compareAtPrice"));
+        if (StringUtils.hasText(row.categorySlug())) {
+            Category category = categoryRepository.findBySlug(row.categorySlug())
                 .orElse(null);
             product.setCategory(category);
+        }
+        product.setDescription(row.description());
+        product.setShortDescription(row.shortDescription());
+
+        // Parse tags
+        if (StringUtils.hasText(row.tags())) {
+            String[] tagParts = row.tags().split(";");
+            List<String> tags = new ArrayList<>();
+            for (String t : tagParts) {
+                if (StringUtils.hasText(t.trim())) {
+                    tags.add(t.trim());
+                }
+            }
+            product.setTags(tags);
         }
     }
 
     private List<ProductVariant> buildVariants(Product product, List<CsvRow> rows, List<String> errors) {
         List<ProductVariant> variants = new ArrayList<>();
         for (CsvRow row : rows) {
-            if (!StringUtils.hasText(row.variantSku)) {
+            String vSku = row.variantSku();
+            if (!StringUtils.hasText(vSku)) {
                 continue;
             }
             ProductVariant variant = new ProductVariant();
             variant.setProduct(product);
-            variant.setSku(row.variantSku);
+            variant.setSku(vSku);
+
             // Ensure non-null size/color to satisfy DB NOT NULL constraints
-            variant.setSize(StringUtils.hasText(row.variantSize) ? row.variantSize : "DEFAULT");
-            variant.setColor(StringUtils.hasText(row.variantColor) ? row.variantColor : "DEFAULT");
-            variant.setPrice(toBigDecimal(row.variantPrice, errors, row.lineNumber, "variantPrice"));
-            variant.setStock(parseInt(row.variantStock, errors, row.lineNumber, "variantStock"));
-            variant.setActive(parseBoolean(row.variantActive, true));
+            variant.setSize(StringUtils.hasText(row.variantSize()) ? row.variantSize() : "DEFAULT");
+            variant.setColor(StringUtils.hasText(row.variantColor()) ? row.variantColor() : "DEFAULT");
+
+            // Logic matching ProductServiceImpl: Resolve Price & CompareAtPrice
+            BigDecimal vPrice = toBigDecimal(row.variantPrice(), errors, row.lineNumber(), "variantPrice");
+            variant.setPrice((vPrice != null && vPrice.compareTo(BigDecimal.ZERO) > 0) ? vPrice : product.getPrice());
+
+            BigDecimal vCompareAt = toBigDecimal(row.variantCompareAtPrice(), errors, row.lineNumber(), "variantCompareAtPrice");
+            variant.setCompareAtPrice(vCompareAt != null ? vCompareAt : product.getCompareAtPrice());
+
+            variant.setStock(parseInt(row.variantStock(), errors, row.lineNumber(), "variantStock"));
+            variant.setActive(parseBoolean(row.variantActive(), true));
             variants.add(variant);
         }
         // if no variant rows but we still need a default variant
         if (variants.isEmpty()) {
-            // Lấy dòng đầu tiên để dùng variantSize/variantColor nếu có
             CsvRow first = rows.get(0);
             ProductVariant variant = new ProductVariant();
             variant.setProduct(product);
             variant.setSku(product.getSku() + "-DEFAULT");
             variant.setPrice(product.getPrice());
-            // Nếu CSV có variantStock thì dùng, nếu không thì 0
-            variant.setStock(parseInt(first.variantStock, errors, first.lineNumber, "variantStock"));
+            variant.setCompareAtPrice(product.getCompareAtPrice());
+            variant.setStock(parseInt(first.variantStock(), errors, first.lineNumber(), "variantStock"));
             variant.setActive(true);
-            // Nếu CSV có variantSize/variantColor thì dùng, nếu không thì fallback DEFAULT
-            variant.setSize(StringUtils.hasText(first.variantSize) ? first.variantSize : "DEFAULT");
-            variant.setColor(StringUtils.hasText(first.variantColor) ? first.variantColor : "DEFAULT");
+            variant.setSize(StringUtils.hasText(first.variantSize()) ? first.variantSize() : "DEFAULT");
+            variant.setColor(StringUtils.hasText(first.variantColor()) ? first.variantColor() : "DEFAULT");
             variants.add(variant);
         }
         return variants;
@@ -342,7 +383,8 @@ public class ProductImportExportServiceImpl implements ProductImportExportServic
 
     private String safe(String value) {
         if (value == null) return "";
-        return value.replace(",", " ");
+        // Replace commas and newlines to avoid breaking CSV format
+        return value.replace(",", " ").replace("\n", " ").replace("\r", " ");
     }
 
     private record CsvRow(
@@ -353,10 +395,16 @@ public class ProductImportExportServiceImpl implements ProductImportExportServic
         String compareAtPrice,
         String status,
         String categorySlug,
+        String description,
+        String shortDescription,
+        String featured,
+        String isVisible,
+        String tags,
         String variantSku,
         String variantSize,
         String variantColor,
         String variantPrice,
+        String variantCompareAtPrice,
         String variantStock,
         String variantActive,
         int lineNumber
@@ -371,16 +419,22 @@ public class ProductImportExportServiceImpl implements ProductImportExportServic
                     parts[4].trim(),
                     parts[5].trim(),
                     parts[6].trim(),
-                    parts[7].trim(),
-                    parts[8].trim(),
-                    parts[9].trim(),
-                    parts[10].trim(),
-                    parts[11].trim(),
-                    parts[12].trim(),
+                    parts[7].trim(), // description
+                    parts[8].trim(), // shortDescription
+                    parts[9].trim(), // featured
+                    parts[10].trim(), // isVisible
+                    parts[11].trim(), // tags
+                    parts[12].trim(), // variantSku
+                    parts[13].trim(), // variantSize
+                    parts[14].trim(), // variantColor
+                    parts[15].trim(), // variantPrice
+                    parts[16].trim(), // variantCompareAtPrice
+                    parts[17].trim(), // variantStock
+                    parts[18].trim(), // variantActive
                     line
                 );
             } catch (Exception ex) {
-                errors.add("Dòng " + line + ": lỗi parse dữ liệu.");
+                errors.add("Dòng " + line + ": lỗi parse dữ liệu (có thể thiếu cột).");
                 return null;
             }
         }

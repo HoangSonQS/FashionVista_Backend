@@ -21,6 +21,7 @@ public class ProductListItemDto {
     Integer totalStock; // Tổng stock của tất cả variants (bao gồm cả inactive)
     java.time.LocalDateTime visibleUpdatedAt;
     String thumbnailUrl;
+    String hoverThumbnailUrl;
     String category;
 
     /**
@@ -51,6 +52,11 @@ public class ProductListItemDto {
             .visibleUpdatedAt(product.getVisibleUpdatedAt())
             .thumbnailUrl(product.getImages().stream()
                 .filter(image -> Boolean.TRUE.equals(image.isPrimary()))
+                .findFirst()
+                .map(com.fashionvista.backend.entity.ProductImage::getUrl)
+                .orElse(null))
+            .hoverThumbnailUrl(product.getImages().stream()
+                .filter(image -> !Boolean.TRUE.equals(image.isPrimary()))
                 .findFirst()
                 .map(com.fashionvista.backend.entity.ProductImage::getUrl)
                 .orElse(null))
