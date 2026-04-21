@@ -77,7 +77,10 @@ jobs:
             # Pull new backend image
             docker-compose pull backend
             
-            # Update the entire stack
+            # Stop and remove existing containers to avoid 'KeyError: ContainerConfig' in docker-compose 1.29.2
+            docker-compose down
+            
+            # Start the entire stack
             docker-compose up -d
             
             # Cleanup

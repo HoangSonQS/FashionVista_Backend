@@ -78,6 +78,7 @@ public class SecurityConfig {
                 "https://*.vercel.app",
                 "https://sixthsoul.com",
                 "https://www.sixthsoul.com",
+                "https://ops.sixthsoul.com",
                 "https://*.sixthsoul.com"));
 
         configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
