@@ -49,6 +49,21 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+
+      - name: Copy Docker and Nginx configs to server
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          port: ${{ secrets.SSH_PORT || 22 }}
+          # Sync docker-compose.yml and the whole nginx directory
+          source: "docker-compose.yml,nginx/"
+          target: "/home/deploy/fashionvista/backend"
+          strip_components: 0
+
       - name: Deploy via SSH
         uses: appleboy/ssh-action@v0.1.10
         with:
@@ -57,27 +72,23 @@ jobs:
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           port: ${{ secrets.SSH_PORT || 22 }}
           script: |
-            # Navigate to the backend directory where docker-compose.yml lives
             cd /home/deploy/fashionvista/backend
             
-            # Pull the latest backend image (pushed in previous job)
-            docker-compose pull backend
+            # Pull new backend image
+            docker compose pull backend
             
-            # Restart the stack
-            # This will update the backend container and ensure dependencies (db, nginx) are running
-            docker-compose up -d
+            # Update the entire stack
+            docker compose up -d
             
-            # Cleanup old images
+            # Cleanup
             docker image prune -f
 
-            # Health Check through Nginx (port 80/443) or direct backend (8085)
-            echo "Waiting for stack to stabilize..."
+            echo "Deployment finished. Checking backend health..."
             sleep 30
-            
-            # Check backend health directly via Docker network or localhost mapping
-            if docker exec fashionvista-backend curl -f http://localhost:8085/actuator/health; then
-              echo "Deployment successful!"
+            if docker exec fashionvista-backend-local curl -f http://localhost:8085/actuator/health; then
+              echo "✅ Health check passed!"
             else
-              echo "Health check failed! Check logs with: docker-compose logs backend"
+              echo "❌ Health check failed!"
+              docker compose logs backend | tail -n 50
               exit 1
             fi
