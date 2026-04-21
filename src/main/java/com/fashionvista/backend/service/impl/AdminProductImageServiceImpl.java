@@ -170,6 +170,9 @@ public class AdminProductImageServiceImpl implements AdminProductImageService {
         String cloudinaryPublicId = image.getCloudinaryPublicId();
         boolean wasPrimary = image.isPrimary();
 
+        // Remove from collection to prevent CascadeType.ALL from re-saving or conflicting
+        image.getProduct().getImages().remove(image);
+
         // Delete from database FIRST (fast operation, don't block on Cloudinary)
         productImageRepository.delete(image);
 

@@ -33,7 +33,7 @@ public class ApplicationInitConfig {
                 "customer1@fashionvista.com",
                 "customer123",
                 "Customer One",
-                "0911111111",
+                "k",
                 UserRole.CUSTOMER
             );
 

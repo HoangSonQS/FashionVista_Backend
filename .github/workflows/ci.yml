@@ -57,37 +57,27 @@ jobs:
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           port: ${{ secrets.SSH_PORT || 22 }}
           script: |
-            # Stop and remove existing container
-            docker stop fashionvista-backend || true
-            docker rm fashionvista-backend || true
+            # Navigate to the backend directory where docker-compose.yml lives
+            cd /home/deploy/fashionvista/backend
             
-            # Run new container
-            # Using --env-file for security and --restart for resilience
-            # Binding to 127.0.0.1:8085 to prevent external access (Nginx proxy only)
-            docker run -d \
-              --name fashionvista-backend \
-              --restart unless-stopped \
-              --pull always \
-              -p 127.0.0.1:8085:8085 \
-              --add-host=host.docker.internal:host-gateway \
-              -v /home/deploy/fashionvista/uploads:/app/uploads \
-              --env-file /home/deploy/fashionvista/backend/.env \
-              ${{ secrets.DOCKER_USERNAME }}/fashionvista-backend:sha-${{ github.sha }}
-              
-            # Optional: Remove old images to save space
+            # Pull the latest backend image (pushed in previous job)
+            docker-compose pull backend
+            
+            # Restart the stack
+            # This will update the backend container and ensure dependencies (db, nginx) are running
+            docker-compose up -d
+            
+            # Cleanup old images
             docker image prune -f
 
-            # Health Check
-            echo "Waiting for service to start..."
+            # Health Check through Nginx (port 80/443) or direct backend (8085)
+            echo "Waiting for stack to stabilize..."
             sleep 30
-            if curl -f http://localhost:8085/actuator/health; then
+            
+            # Check backend health directly via Docker network or localhost mapping
+            if docker exec fashionvista-backend curl -f http://localhost:8085/actuator/health; then
               echo "Deployment successful!"
-              echo "--------------------------------------------------------"
-              echo "ROLLBACK COMMAND (Save this for emergency):"
-              echo "docker stop fashionvista-backend && docker rm fashionvista-backend"
-              echo "docker run -d --name fashionvista-backend --restart unless-stopped -p 127.0.0.1:8085:8085 -v /home/ubuntu/fashionvista/uploads:/app/uploads --env-file /home/ubuntu/fashionvista/backend/.env ${{ secrets.DOCKER_USERNAME }}/fashionvista-backend:sha-${{ github.sha }}"
-              echo "--------------------------------------------------------"
             else
-              echo "Health check failed!"
+              echo "Health check failed! Check logs with: docker-compose logs backend"
               exit 1
             fi
