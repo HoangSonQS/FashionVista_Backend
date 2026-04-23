@@ -1,5 +1,6 @@
 package com.fashionvista.backend.controller;
 
+import com.fashionvista.backend.dto.VoucherDiscountResult;
 import com.fashionvista.backend.dto.VoucherValidationResponse;
 import com.fashionvista.backend.service.VoucherService;
 import java.math.BigDecimal;
@@ -28,14 +29,16 @@ public class VoucherController {
         @RequestParam BigDecimal subtotal
     ) {
         try {
-            BigDecimal discount = voucherService.validateAndCalculateDiscount(code, subtotal);
+            VoucherDiscountResult result = voucherService.validateAndCalculateDiscount(code, subtotal);
+            BigDecimal discount = result.getDiscount();
             BigDecimal finalTotal = subtotal.subtract(discount).max(BigDecimal.ZERO);
             VoucherValidationResponse response = VoucherValidationResponse.builder()
                 .valid(true)
-                .message("Áp dụng voucher thành công.")
+                .message("Áp dụng voucher thành công. (Updated)")
                 .discount(discount)
                 .subtotal(subtotal)
                 .finalTotal(finalTotal)
+                .freeShipping(result.isFreeShipping())
                 .build();
             return ResponseEntity.ok(response);
         } catch (IllegalArgumentException ex) {

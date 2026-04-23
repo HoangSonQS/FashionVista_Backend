@@ -12,7 +12,6 @@ import com.fashionvista.backend.entity.Payment;
 import com.fashionvista.backend.entity.PaymentMethod;
 import com.fashionvista.backend.entity.PaymentStatus;
 import com.fashionvista.backend.entity.ProductVariant;
-import com.fashionvista.backend.entity.ShippingMethod;
 import com.fashionvista.backend.repository.CartRepository;
 import com.fashionvista.backend.repository.OrderRepository;
 import com.fashionvista.backend.repository.PaymentRepository;
@@ -102,23 +101,29 @@ public class OrderServiceImpl implements OrderService {
         String voucherCode = null;
         if (request.getVoucherCode() != null && !request.getVoucherCode().isBlank()) {
             voucherCode = request.getVoucherCode().trim();
-            discount = voucherService.validateAndCalculateDiscount(
+            com.fashionvista.backend.dto.VoucherDiscountResult result = voucherService.validateAndCalculateDiscount(
                     voucherCode,
                     order.getSubtotal());
+            discount = result.getDiscount();
+            if (result.isFreeShipping()) {
+                order.setShippingFee(BigDecimal.ZERO);
+                shippingFee = BigDecimal.ZERO; // Cập nhật local variable để tính total đúng
+            }
         }
         order.setDiscount(discount);
+        order.setVoucherCode(voucherCode);
         order.setTotal(order.getSubtotal().add(shippingFee).subtract(discount));
 
         Order saved = orderRepository.save(order);
 
-        // Tăng usedCount của voucher sau khi đơn hàng được tạo thành công
-        if (voucherCode != null && !voucherCode.isBlank()) {
+        // Voucher application:
+        // - Với COD/CASH: Apply ngay
+        // - Với VNPAY: Chỉ apply khi payment thành công (trong callback/decreaseStock)
+        if (voucherCode != null && !voucherCode.isBlank() && request.getPaymentMethod() != PaymentMethod.VNPAY) {
             try {
                 voucherService.applyVoucher(voucherCode);
             } catch (Exception e) {
-                // Log lỗi nhưng không rollback đơn hàng
-                // Voucher có thể đã bị xóa hoặc thay đổi sau khi validate
-                // Đơn hàng vẫn được tạo thành công
+                log.warn("Không thể apply voucher {} cho order {}: {}", voucherCode, saved.getOrderNumber(), e.getMessage());
             }
         }
 
@@ -287,6 +292,16 @@ public class OrderServiceImpl implements OrderService {
                 }
             }
         });
+
+        // Apply voucher nếu có (cho online payment)
+        if (order.getVoucherCode() != null && !order.getVoucherCode().isBlank()) {
+            try {
+                voucherService.applyVoucher(order.getVoucherCode());
+            } catch (Exception e) {
+                log.warn("Không thể apply deferred voucher {} cho order success {}: {}",
+                        order.getVoucherCode(), order.getOrderNumber(), e.getMessage());
+            }
+        }
     }
 
     private void validateStock(CartItem item) {
@@ -365,7 +380,7 @@ public class OrderServiceImpl implements OrderService {
             // Generate tracking URL dựa trên shipping method
             if (order.getShippingMethod() != null) {
                 switch (order.getShippingMethod()) {
-                    case STANDARD, FAST, EXPRESS -> {
+                    case "STANDARD", "FAST", "EXPRESS" -> {
                         // Giả định dùng GHN
                         trackingUrl = "https://donhang.ghn.vn/?order_code=" + order.getTrackingNumber();
                     }
@@ -397,7 +412,7 @@ public class OrderServiceImpl implements OrderService {
                 .build();
     }
 
-    private BigDecimal calculateShippingFee(BigDecimal subtotal, ShippingMethod method) {
+    private BigDecimal calculateShippingFee(BigDecimal subtotal, String method) {
         if (subtotal == null || subtotal.compareTo(BigDecimal.ZERO) <= 0) {
             return BigDecimal.ZERO;
         }
@@ -410,9 +425,9 @@ public class OrderServiceImpl implements OrderService {
 
         BigDecimal base = BigDecimal.valueOf(30_000);
         return switch (method) {
-            case FAST -> base.add(BigDecimal.valueOf(10_000));
-            case EXPRESS -> base.add(BigDecimal.valueOf(20_000));
-            case STANDARD -> base;
+            case "FAST" -> base.add(BigDecimal.valueOf(10_000));
+            case "EXPRESS" -> base.add(BigDecimal.valueOf(20_000));
+            default -> base; // Mặc định là STANDARD hoặc các loại khác
         };
     }
 

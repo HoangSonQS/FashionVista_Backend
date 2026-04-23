@@ -3,7 +3,6 @@ package com.fashionvista.backend.dto;
 import com.fashionvista.backend.entity.OrderStatus;
 import com.fashionvista.backend.entity.PaymentMethod;
 import com.fashionvista.backend.entity.PaymentStatus;
-import com.fashionvista.backend.entity.ShippingMethod;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
@@ -19,7 +18,7 @@ public class OrderResponse {
     OrderStatus status;
     PaymentMethod paymentMethod;
     PaymentStatus paymentStatus;
-    ShippingMethod shippingMethod;
+    String shippingMethod;
     String shippingAddress;
     String billingAddress;
     BigDecimal subtotal;
@@ -41,4 +40,3 @@ public class OrderResponse {
 
     List<OrderHistoryItemResponse> history;
 }
-

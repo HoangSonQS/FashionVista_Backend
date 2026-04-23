@@ -1,5 +1,6 @@
 package com.fashionvista.backend.service.impl;
 
+import com.fashionvista.backend.dto.VoucherDiscountResult;
 import com.fashionvista.backend.entity.Voucher;
 import com.fashionvista.backend.entity.VoucherType;
 import com.fashionvista.backend.repository.VoucherRepository;
@@ -18,9 +19,12 @@ public class VoucherServiceImpl implements VoucherService {
 
     @Override
     @Transactional
-    public BigDecimal validateAndCalculateDiscount(String code, BigDecimal subtotal) {
+    public VoucherDiscountResult validateAndCalculateDiscount(String code, BigDecimal subtotal) {
         if (code == null || code.isBlank()) {
-            return BigDecimal.ZERO;
+            return VoucherDiscountResult.builder()
+                .discount(BigDecimal.ZERO)
+                .freeShipping(false)
+                .build();
         }
         if (subtotal == null || subtotal.compareTo(BigDecimal.ZERO) <= 0) {
             throw new IllegalArgumentException("Tổng tiền đơn hàng không hợp lệ để áp dụng voucher.");
@@ -57,7 +61,10 @@ public class VoucherServiceImpl implements VoucherService {
         // KHÔNG tăng usedCount ở đây - chỉ validate và tính discount
         // usedCount sẽ được tăng khi đơn hàng được tạo thành công
 
-        return discount;
+        return VoucherDiscountResult.builder()
+            .discount(discount)
+            .freeShipping(voucher.isFreeShipping())
+            .build();
     }
 
     @Override

@@ -378,7 +378,7 @@ public class AdminOrderServiceImpl implements AdminOrderService {
             // GHTK: https://khachhang.giaohangtietkiem.vn/don-hang/{trackingNumber}
             if (order.getShippingMethod() != null) {
                 switch (order.getShippingMethod()) {
-                    case STANDARD, FAST, EXPRESS -> {
+                    case "STANDARD", "FAST", "EXPRESS" -> {
                         // Giả định dùng GHN
                         trackingUrl = "https://donhang.ghn.vn/?order_code=" + order.getTrackingNumber();
                     }

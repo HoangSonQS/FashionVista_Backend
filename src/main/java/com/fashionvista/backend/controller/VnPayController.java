@@ -92,7 +92,15 @@ public class VnPayController {
             return response;
         }
 
-        String orderNumber = params.get("vnp_TxnRef");
+        String rawTxnRef = params.get("vnp_TxnRef");
+        if (rawTxnRef == null) {
+            response.put("message", "Thiếu mã tham chiếu giao dịch (vnp_TxnRef).");
+            response.put("status", 400);
+            return response;
+        }
+
+        // vnp_TxnRef format: {ORDER_NUMBER}_{TIMESTAMP}
+        String orderNumber = rawTxnRef.split("_")[0];
         if (orderNumber == null) {
             response.put("message", "Thiếu mã đơn hàng.");
             response.put("status", 400);

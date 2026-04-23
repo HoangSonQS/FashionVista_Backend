@@ -51,6 +51,21 @@ public class DbConstraintMigration implements ApplicationRunner {
         } catch (Exception ignored) {
             // Nếu không có constraint hoặc đã chuẩn, bỏ qua
         }
+
+        // Seed data cho phí vận chuyển nếu chưa có
+        try {
+            Integer count = jdbcTemplate.queryForObject("SELECT count(*) FROM shipping_fee_configs", Integer.class);
+            if (count == null || count == 0) {
+                jdbcTemplate.execute(
+                    "INSERT INTO shipping_fee_configs (method, base_fee, free_shipping_threshold, created_at, updated_at) VALUES " +
+                    "('STANDARD', 30000, 1000000, NOW(), NOW()), " +
+                    "('FAST', 40000, 1000000, NOW(), NOW()), " +
+                    "('EXPRESS', 50000, 1000000, NOW(), NOW())"
+                );
+            }
+        } catch (Exception e) {
+            // Có thể bảng chưa được Hibernate tạo xong, bỏ qua và sẽ chạy lại ở lần khởi động sau
+        }
     }
 }
 

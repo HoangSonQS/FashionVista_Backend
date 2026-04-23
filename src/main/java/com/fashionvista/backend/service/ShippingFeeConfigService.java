@@ -1,14 +1,16 @@
 package com.fashionvista.backend.service;
 
+import com.fashionvista.backend.dto.ShippingFeeConfigCreateRequest;
 import com.fashionvista.backend.dto.ShippingFeeConfigResponse;
 import com.fashionvista.backend.dto.ShippingFeeConfigUpdateRequest;
-import com.fashionvista.backend.entity.ShippingMethod;
 import java.util.List;
 
 public interface ShippingFeeConfigService {
     List<ShippingFeeConfigResponse> getAll();
-    ShippingFeeConfigResponse getByMethod(ShippingMethod method);
+    ShippingFeeConfigResponse getByMethod(String method);
+    ShippingFeeConfigResponse create(ShippingFeeConfigCreateRequest request);
     ShippingFeeConfigResponse update(Long id, ShippingFeeConfigUpdateRequest request);
+    void delete(Long id);
 }
 
 

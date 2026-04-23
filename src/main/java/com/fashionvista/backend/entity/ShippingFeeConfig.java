@@ -2,8 +2,6 @@ package com.fashionvista.backend.entity;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
-import jakarta.persistence.EnumType;
-import jakarta.persistence.Enumerated;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
@@ -29,9 +27,8 @@ public class ShippingFeeConfig {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Enumerated(EnumType.STRING)
     @Column(nullable = false, unique = true)
-    private ShippingMethod method;
+    private String method;
 
     @Column(nullable = false, precision = 10, scale = 2)
     private BigDecimal baseFee;

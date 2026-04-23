@@ -13,6 +13,8 @@ public class VoucherValidationResponse {
     BigDecimal discount;
     BigDecimal subtotal;
     BigDecimal finalTotal;
+    @com.fasterxml.jackson.annotation.JsonProperty("freeShipping")
+    boolean freeShipping;
 }
 
 

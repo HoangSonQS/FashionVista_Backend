@@ -1,7 +1,6 @@
 package com.fashionvista.backend.controller;
 
 import com.fashionvista.backend.dto.ShippingFeeConfigResponse;
-import com.fashionvista.backend.entity.ShippingMethod;
 import com.fashionvista.backend.service.ShippingFeeConfigService;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
@@ -24,7 +23,7 @@ public class ShippingFeeConfigController {
     }
 
     @GetMapping("/by-method")
-    public ResponseEntity<ShippingFeeConfigResponse> getByMethod(@RequestParam ShippingMethod method) {
+    public ResponseEntity<ShippingFeeConfigResponse> getByMethod(@RequestParam String method) {
         return ResponseEntity.ok(service.getByMethod(method));
     }
 }

@@ -11,7 +11,6 @@ import java.time.format.DateTimeFormatter;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.Map;
-import java.util.TimeZone;
 import java.util.stream.Collectors;
 import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
@@ -34,13 +33,14 @@ public class VnPayServiceImpl implements VnPayService {
         params.put("vnp_TmnCode", vnPayConfig.getTmnCode());
         params.put("vnp_Amount", order.getTotal().multiply(java.math.BigDecimal.valueOf(100)).toBigInteger().toString());
         params.put("vnp_CurrCode", "VND");
-        params.put("vnp_TxnRef", order.getOrderNumber());
+        params.put("vnp_TxnRef", order.getOrderNumber() + "_" + System.currentTimeMillis() / 1000);
         params.put("vnp_OrderInfo", "Thanh toan don hang " + order.getOrderNumber());
         params.put("vnp_OrderType", "fashion");
         params.put("vnp_Locale", "vn");
         params.put("vnp_ReturnUrl", vnPayConfig.getReturnUrl());
         params.put("vnp_IpAddr", clientIp != null ? clientIp : "127.0.0.1");
-        params.put("vnp_CreateDate", order.getCreatedAt().atZone(TimeZone.getTimeZone("Asia/Ho_Chi_Minh").toZoneId())
+        params.put("vnp_CreateDate", java.time.LocalDateTime.now()
+            .atZone(java.time.ZoneId.of("Asia/Ho_Chi_Minh"))
             .format(VNP_DATETIME_FORMATTER));
 
         String query = buildQuery(params);

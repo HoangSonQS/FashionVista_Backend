@@ -1,5 +1,6 @@
 package com.fashionvista.backend.service;
 
+import com.fashionvista.backend.dto.VoucherDiscountResult;
 import java.math.BigDecimal;
 
 /**
@@ -13,10 +14,10 @@ public interface VoucherService {
      *
      * @param code     mã voucher
      * @param subtotal tổng tiền hàng (chưa gồm ship, chưa trừ giảm giá)
-     * @return số tiền giảm (>= 0)
+     * @return kết quả voucher gồm số tiền giảm và flag freeship
      * @throws IllegalArgumentException nếu voucher không hợp lệ
      */
-    BigDecimal validateAndCalculateDiscount(String code, BigDecimal subtotal);
+    VoucherDiscountResult validateAndCalculateDiscount(String code, BigDecimal subtotal);
 
     /**
      * Áp dụng voucher (tăng usedCount) sau khi đơn hàng được tạo thành công.

@@ -61,6 +61,9 @@ public class Order {
     @Builder.Default
     private BigDecimal discount = BigDecimal.ZERO;
 
+    @Column(name = "voucher_code", length = 64)
+    private String voucherCode;
+
     @Column(nullable = false, precision = 10, scale = 2)
     private BigDecimal total;
 
@@ -68,10 +71,9 @@ public class Order {
     @Column(name = "payment_method", nullable = false)
     private PaymentMethod paymentMethod;
 
-    @Enumerated(EnumType.STRING)
     @Column(name = "shipping_method", nullable = false)
     @Builder.Default
-    private ShippingMethod shippingMethod = ShippingMethod.STANDARD;
+    private String shippingMethod = "STANDARD";
 
     @Enumerated(EnumType.STRING)
     @Column(name = "payment_status", nullable = false)

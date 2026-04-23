@@ -76,7 +76,7 @@ public class PrintExportController {
                 safe(order.getStatus().name()),
                 order.getTotal() != null ? order.getTotal().toPlainString() : "",
                 order.getPaymentStatus() != null ? order.getPaymentStatus().name() : "",
-                order.getShippingMethod() != null ? order.getShippingMethod().name() : "",
+                order.getShippingMethod() != null ? order.getShippingMethod() : "",
                 order.getCreatedAt() != null ? order.getCreatedAt().toString() : ""
             ));
         });
