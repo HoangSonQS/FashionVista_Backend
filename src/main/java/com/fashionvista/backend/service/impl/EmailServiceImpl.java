@@ -3,7 +3,6 @@ package com.fashionvista.backend.service.impl;
 import com.fashionvista.backend.entity.Order;
 import com.fashionvista.backend.entity.User;
 import com.fashionvista.backend.repository.OrderRepository;
-import com.fashionvista.backend.service.BrevoMailSender;
 import com.fashionvista.backend.service.EmailService;
 import jakarta.mail.MessagingException;
 import jakarta.mail.internet.MimeMessage;
@@ -36,23 +35,23 @@ public class EmailServiceImpl implements EmailService {
     private final SpringTemplateEngine emailTemplateEngine;
     private final OrderRepository orderRepository;
     private final com.fashionvista.backend.repository.CartRepository cartRepository;
-    private final BrevoMailSender brevoMailSender;
 
     public EmailServiceImpl(
             JavaMailSender mailSender,
             @Qualifier("emailTemplateEngine") SpringTemplateEngine emailTemplateEngine,
             OrderRepository orderRepository,
-            com.fashionvista.backend.repository.CartRepository cartRepository,
-            BrevoMailSender brevoMailSender) {
+            com.fashionvista.backend.repository.CartRepository cartRepository) {
         this.mailSender = mailSender;
         this.emailTemplateEngine = emailTemplateEngine;
         this.orderRepository = orderRepository;
         this.cartRepository = cartRepository;
-        this.brevoMailSender = brevoMailSender;
     }
 
-    @Value("${spring.mail.username:}")
+    @Value("${app.mail.from-email:${spring.mail.username:}}")
     private String fromEmail;
+
+    @Value("${app.mail.from-name:${app.name:Sixthsoul}}")
+    private String fromName;
 
     @Value("${app.frontend.url:http://localhost:5173}")
     private String frontendUrl;
@@ -62,11 +61,6 @@ public class EmailServiceImpl implements EmailService {
 
     @Override
     public void sendVerificationEmail(User user, String verificationToken) {
-        if (brevoMailSender.isConfigured()) {
-            String html = buildVerificationHtml(user, verificationToken);
-            brevoMailSender.sendEmail(user.getEmail(), user.getFullName(), "Xác thực tài khoản " + appName, html);
-            return;
-        }
         if (!isSmtpConfigured()) {
             log.warn("Bỏ qua gửi email xác thực vì SMTP chưa cấu hình.");
             return;
@@ -78,7 +72,7 @@ public class EmailServiceImpl implements EmailService {
             MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
 
             try {
-                helper.setFrom(fromEmail, appName);
+                helper.setFrom(fromEmail, fromName);
             } catch (UnsupportedEncodingException ex) {
                 // Fallback: nếu lỗi encoding display name thì chỉ dùng email thuần
                 helper.setFrom(fromEmail);
@@ -100,12 +94,6 @@ public class EmailServiceImpl implements EmailService {
     @Async("emailTaskExecutor")
     @Transactional(readOnly = true)
     public void sendOrderConfirmationEmail(Order order) {
-        if (brevoMailSender.isConfigured()) {
-            String html = buildOrderConfirmationHtml(order);
-            brevoMailSender.sendEmail(order.getUser().getEmail(), order.getUser().getFullName(),
-                    "Xác nhận đơn hàng #" + order.getOrderNumber(), html);
-            return;
-        }
         if (!isSmtpConfigured()) {
             log.warn("Bỏ qua gửi email xác nhận đơn hàng vì SMTP chưa cấu hình.");
             return;
@@ -117,7 +105,7 @@ public class EmailServiceImpl implements EmailService {
             MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
 
             try {
-                helper.setFrom(fromEmail, appName);
+                helper.setFrom(fromEmail, fromName);
             } catch (UnsupportedEncodingException ex) {
                 helper.setFrom(fromEmail);
             }
@@ -140,14 +128,6 @@ public class EmailServiceImpl implements EmailService {
     @Async("emailTaskExecutor")
     @Transactional(readOnly = true)
     public void sendOrderStatusUpdateEmail(Order order, String oldStatus, String newStatus) {
-        if (brevoMailSender.isConfigured()) {
-            Order hydratedOrder = orderRepository.findById(order.getId())
-                    .orElse(order);
-            String html = buildOrderStatusUpdateHtml(hydratedOrder, oldStatus, newStatus);
-            brevoMailSender.sendEmail(hydratedOrder.getUser().getEmail(), hydratedOrder.getUser().getFullName(),
-                    "Cập nhật trạng thái đơn hàng #" + hydratedOrder.getOrderNumber(), html);
-            return;
-        }
         if (!isSmtpConfigured()) {
             log.warn("Bỏ qua gửi email cập nhật trạng thái đơn hàng vì SMTP chưa cấu hình.");
             return;
@@ -164,7 +144,7 @@ public class EmailServiceImpl implements EmailService {
             MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
 
             try {
-                helper.setFrom(fromEmail, appName);
+                helper.setFrom(fromEmail, fromName);
             } catch (UnsupportedEncodingException ex) {
                 helper.setFrom(fromEmail);
             }
@@ -181,11 +161,6 @@ public class EmailServiceImpl implements EmailService {
 
     @Override
     public void sendPasswordResetEmail(User user, String resetToken) {
-        if (brevoMailSender.isConfigured()) {
-            String html = buildPasswordResetHtml(user, resetToken);
-            brevoMailSender.sendEmail(user.getEmail(), user.getFullName(), "Đặt lại mật khẩu " + appName, html);
-            return;
-        }
         if (!isSmtpConfigured()) {
             log.warn("Bỏ qua gửi email reset mật khẩu vì SMTP chưa cấu hình.");
             return;
@@ -197,7 +172,7 @@ public class EmailServiceImpl implements EmailService {
             MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
 
             try {
-                helper.setFrom(fromEmail, appName);
+                helper.setFrom(fromEmail, fromName);
             } catch (UnsupportedEncodingException ex) {
                 helper.setFrom(fromEmail);
             }
@@ -215,12 +190,6 @@ public class EmailServiceImpl implements EmailService {
 
     @Override
     public void sendPaymentConfirmationEmail(Order order) {
-        if (brevoMailSender.isConfigured()) {
-            String html = buildPaymentConfirmationHtml(order);
-            brevoMailSender.sendEmail(order.getUser().getEmail(), order.getUser().getFullName(),
-                    "Xác nhận thanh toán đơn hàng #" + order.getOrderNumber(), html);
-            return;
-        }
         if (!isSmtpConfigured()) {
             log.warn("Bỏ qua gửi email xác nhận thanh toán vì SMTP chưa cấu hình.");
             return;
@@ -232,7 +201,7 @@ public class EmailServiceImpl implements EmailService {
             MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
 
             try {
-                helper.setFrom(fromEmail, appName);
+                helper.setFrom(fromEmail, fromName);
             } catch (UnsupportedEncodingException ex) {
                 helper.setFrom(fromEmail);
             }
@@ -369,12 +338,6 @@ public class EmailServiceImpl implements EmailService {
         com.fashionvista.backend.entity.Cart hydratedCart = cartRepository.findById(cart.getId())
                 .orElse(cart);
 
-        if (brevoMailSender.isConfigured()) {
-            String html = buildAbandonedCartHtml(hydratedCart);
-            brevoMailSender.sendEmail(email, hydratedCart.getUser().getFullName(), "Bạn đã quên gì đó? " + appName,
-                    html);
-            return;
-        }
         if (!isSmtpConfigured()) {
             log.warn("Bỏ qua gửi email nhắc nhở giỏ hàng vì SMTP chưa cấu hình.");
             return;
@@ -386,7 +349,7 @@ public class EmailServiceImpl implements EmailService {
             MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
 
             try {
-                helper.setFrom(fromEmail, appName);
+                helper.setFrom(fromEmail, fromName);
             } catch (UnsupportedEncodingException ex) {
                 helper.setFrom(fromEmail);
             }
