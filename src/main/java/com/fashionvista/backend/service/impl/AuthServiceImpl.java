@@ -34,9 +34,11 @@ import com.fashionvista.backend.service.TokenBlacklistService;
 
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class AuthServiceImpl implements AuthService {
 
     private final UserRepository userRepository;
@@ -240,8 +242,10 @@ public class AuthServiceImpl implements AuthService {
     @Override
     @Transactional
     public void forgotPassword(String email) {
-        User user = userRepository.findByEmail(email).orElse(null);
+        String normalizedEmail = email == null ? "" : email.trim().toLowerCase();
+        User user = userRepository.findByEmail(normalizedEmail).orElse(null);
         if (user == null) {
+            log.warn("Yeu cau quen mat khau bi bo qua vi khong tim thay email: {}", normalizedEmail);
             return;
         }
 

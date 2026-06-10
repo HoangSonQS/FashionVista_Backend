@@ -36,6 +36,8 @@ public class MailConfig {
         properties.put("mail.smtp.auth", String.valueOf(auth));
         properties.put("mail.smtp.starttls.enable", String.valueOf(startTls));
         properties.put("mail.smtp.ssl.enable", String.valueOf(ssl));
+        properties.put("mail.smtp.ssl.trust", host);
+        properties.put("mail.smtp.ssl.protocols", "TLSv1.2 TLSv1.3");
         properties.put("mail.smtp.connectiontimeout", "10000");
         properties.put("mail.smtp.timeout", "10000");
         properties.put("mail.smtp.writetimeout", "10000");

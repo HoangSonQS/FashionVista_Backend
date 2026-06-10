@@ -172,6 +172,18 @@ public class AuthServiceImplTest {
     }
 
     @Test
+    void forgotPassword_NormalizesEmailBeforeLookup() {
+        String normalizedEmail = "test@example.com";
+        when(userRepository.findByEmail(normalizedEmail)).thenReturn(Optional.of(user));
+        when(passwordResetTokenRepository.findByUser(user)).thenReturn(Optional.empty());
+
+        authService.forgotPassword("  Test@Example.com  ");
+
+        verify(userRepository).findByEmail(normalizedEmail);
+        verify(emailService).sendPasswordResetEmail(any(User.class), any(String.class));
+    }
+
+    @Test
     void forgotPassword_NonExistingEmail_DoNothing() {
         String email = "nonexistent@example.com";
         when(userRepository.findByEmail(email)).thenReturn(Optional.empty());
