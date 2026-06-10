@@ -18,6 +18,8 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.context.request.WebRequest;
 import org.springframework.web.servlet.mvc.method.annotation.ResponseEntityExceptionHandler;
+import com.fashionvista.backend.domain.LoginRateLimitExceededException;
+import com.fashionvista.backend.domain.RefreshTokenReuseDetectedException;
 
 import lombok.extern.slf4j.Slf4j;
 
@@ -58,6 +60,22 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
         log.warn("Illegal argument at {}: {}", request.getRequestURI(), ex.getMessage());
         ErrorResponse body = ErrorResponse.of(HttpStatus.BAD_REQUEST, ex.getMessage(), request.getRequestURI());
         return ResponseEntity.badRequest().body(body);
+    }
+
+    @ExceptionHandler(LoginRateLimitExceededException.class)
+    public ResponseEntity<ErrorResponse> handleRateLimit(LoginRateLimitExceededException ex,
+            HttpServletRequest request) {
+        log.warn("Login rate limited at {}: {}", request.getRequestURI(), ex.getMessage());
+        ErrorResponse body = ErrorResponse.of(HttpStatus.TOO_MANY_REQUESTS, ex.getMessage(), request.getRequestURI());
+        return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS).body(body);
+    }
+
+    @ExceptionHandler(RefreshTokenReuseDetectedException.class)
+    public ResponseEntity<ErrorResponse> handleRefreshReuse(RefreshTokenReuseDetectedException ex,
+            HttpServletRequest request) {
+        log.warn("Refresh token reuse at {}: {}", request.getRequestURI(), ex.getMessage());
+        ErrorResponse body = ErrorResponse.of(HttpStatus.UNAUTHORIZED, ex.getMessage(), request.getRequestURI());
+        return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(body);
     }
 
     @ExceptionHandler(EntityNotFoundException.class)

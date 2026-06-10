@@ -1,4 +1,4 @@
-FROM maven:3-openjdk-17 AS build
+FROM maven:3.9.9-eclipse-temurin-17 AS build
 WORKDIR /app
 
 # Copy pom.xml first for better caching
@@ -20,7 +20,7 @@ RUN mvn clean package -DskipTests
 RUN ls -la /app/target/*.war || (echo "WAR file not found!" && ls -la /app/target/ && exit 1)
 
 # Run stage
-FROM eclipse-temurin:17-jdk
+FROM eclipse-temurin:17-jre
 WORKDIR /app
 
 # Copy WAR file from build stage

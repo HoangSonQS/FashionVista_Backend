@@ -8,6 +8,7 @@ import com.fashionvista.backend.dto.UserProfileResponse;
 import com.fashionvista.backend.entity.Address;
 import com.fashionvista.backend.repository.AddressRepository;
 import com.fashionvista.backend.repository.UserRepository;
+import com.fashionvista.backend.service.RefreshTokenService;
 import com.fashionvista.backend.service.UserContextService;
 import jakarta.validation.Valid;
 import java.util.List;
@@ -33,6 +34,7 @@ public class UserController {
     private final UserRepository userRepository;
     private final AddressRepository addressRepository;
     private final PasswordEncoder passwordEncoder;
+    private final RefreshTokenService refreshTokenService;
 
     @GetMapping
     public UserProfileResponse getProfile() {
@@ -75,6 +77,7 @@ public class UserController {
         }
         user.setPassword(passwordEncoder.encode(request.getNewPassword()));
         userRepository.save(user);
+        refreshTokenService.revokeAllSessions(user.getId());
     }
 
     @GetMapping("/addresses")

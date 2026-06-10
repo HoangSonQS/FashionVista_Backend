@@ -4,6 +4,8 @@ import com.fashionvista.backend.dto.*;
 import com.fashionvista.backend.entity.*;
 import com.fashionvista.backend.repository.*;
 import com.fashionvista.backend.service.AdminUserService;
+import com.fashionvista.backend.service.PermissionCacheService;
+import com.fashionvista.backend.service.RefreshTokenService;
 import com.fashionvista.backend.service.UserContextService;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
@@ -34,6 +36,8 @@ public class AdminUserServiceImpl implements AdminUserService {
     private final LoyaltyPointHistoryRepository loyaltyPointHistoryRepository;
     private final LoginActivityRepository loginActivityRepository;
     private final org.springframework.security.crypto.password.PasswordEncoder passwordEncoder;
+    private final RefreshTokenService refreshTokenService;
+    private final PermissionCacheService permissionCacheService;
 
     @Override
     @Transactional(readOnly = true)
@@ -64,6 +68,12 @@ public class AdminUserServiceImpl implements AdminUserService {
 
         user.setActive(request.getActive());
         User saved = userRepository.save(user);
+        if (permissionCacheService != null) {
+            permissionCacheService.evictPermissions(saved.getId());
+        }
+        if (!Boolean.TRUE.equals(request.getActive()) && refreshTokenService != null) {
+            refreshTokenService.revokeAllSessions(saved.getId());
+        }
 
         return toAdminUserListResponse(saved);
     }
@@ -80,8 +90,18 @@ public class AdminUserServiceImpl implements AdminUserService {
             throw new IllegalStateException("Bạn không thể thay đổi vai trò của chính mình.");
         }
 
+        UserRole previousRole = user.getRole();
         user.setRole(request.getRole());
         User saved = userRepository.save(user);
+        if (permissionCacheService != null) {
+            permissionCacheService.evictPermissions(saved.getId());
+        }
+        if (previousRole == UserRole.ADMIN || previousRole == UserRole.STAFF
+                || saved.getRole() == UserRole.ADMIN || saved.getRole() == UserRole.STAFF) {
+            if (refreshTokenService != null) {
+            refreshTokenService.revokeAllSessions(saved.getId());
+            }
+        }
 
         return toAdminUserListResponse(saved);
     }
@@ -223,6 +243,9 @@ public class AdminUserServiceImpl implements AdminUserService {
         // Hash và lưu
         user.setPassword(passwordEncoder.encode(passwordToUse));
         userRepository.save(user);
+        if (refreshTokenService != null) {
+            refreshTokenService.revokeAllSessions(user.getId());
+        }
 
         return passwordToUse;
     }

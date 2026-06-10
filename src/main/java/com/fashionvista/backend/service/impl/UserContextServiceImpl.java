@@ -1,13 +1,15 @@
 package com.fashionvista.backend.service.impl;
 
-import com.fashionvista.backend.entity.User;
-import com.fashionvista.backend.repository.UserRepository;
-import com.fashionvista.backend.service.UserContextService;
-import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.stereotype.Service;
+
+import com.fashionvista.backend.entity.User;
+import com.fashionvista.backend.repository.UserRepository;
+import com.fashionvista.backend.service.UserContextService;
+
+import lombok.RequiredArgsConstructor;
 
 @Service
 @RequiredArgsConstructor
@@ -19,16 +21,21 @@ public class UserContextServiceImpl implements UserContextService {
     public User getCurrentUser() {
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
         if (authentication == null) {
-            throw new IllegalStateException("Không tìm thấy thông tin người dùng trong phiên.");
+            throw new IllegalStateException("Khong tim thay thong tin nguoi dung trong phien.");
         }
 
-        String email = authentication.getName();
         if (authentication.getPrincipal() instanceof Jwt jwt) {
-            email = jwt.getSubject();
+            String subject = jwt.getSubject();
+            try {
+                return userRepository.findById(Long.valueOf(subject))
+                        .orElseThrow(() -> new IllegalStateException("Khong tim thay nguoi dung."));
+            } catch (NumberFormatException ignored) {
+                return userRepository.findByEmail(subject)
+                        .orElseThrow(() -> new IllegalStateException("Khong tim thay nguoi dung."));
+            }
         }
 
-        return userRepository.findByEmail(email)
-            .orElseThrow(() -> new IllegalStateException("Không tìm thấy người dùng."));
+        return userRepository.findByEmail(authentication.getName())
+                .orElseThrow(() -> new IllegalStateException("Khong tim thay nguoi dung."));
     }
 }
-

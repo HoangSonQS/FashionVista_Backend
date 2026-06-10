@@ -50,6 +50,8 @@ public interface AuthService {
     RefreshTokenResponse refreshToken(
             RefreshTokenRequest request);
 
+    RefreshTokenResponse refreshToken(String refreshToken);
+
     /**
      * Đăng xuất người dùng (xóa Refresh Token)
      * 
@@ -57,4 +59,8 @@ public interface AuthService {
      *                hoặc token
      */
     void logout(String refreshToken);
+
+    void logout(String accessToken, String refreshToken);
+
+    void logoutAll(Long userId);
 }

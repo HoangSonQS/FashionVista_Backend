@@ -1,8 +1,10 @@
 package com.fashionvista.backend.config;
 
 import java.util.List;
+import java.util.ArrayList;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpMethod;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
@@ -15,6 +17,7 @@ import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
+import com.fashionvista.backend.service.PermissionCacheService;
 
 @Configuration
 @EnableWebSecurity
@@ -27,32 +30,64 @@ public class SecurityConfig {
     }
 
     @Bean
-    public JwtAuthenticationConverter jwtAuthenticationConverter() {
+    public JwtAuthenticationConverter jwtAuthenticationConverter(PermissionCacheService permissionCacheService) {
         JwtAuthenticationConverter converter = new JwtAuthenticationConverter();
         converter.setJwtGrantedAuthoritiesConverter(jwt -> {
-            String role = jwt.getClaimAsString("role");
-            if (role == null) {
-                return List.of();
+            List<GrantedAuthority> authorities = new ArrayList<>();
+            try {
+                PermissionCacheService.PermissionSnapshot snapshot =
+                        permissionCacheService.getPermissions(Long.valueOf(jwt.getSubject()));
+                snapshot.getRoles().forEach(role -> authorities.add(new SimpleGrantedAuthority("ROLE_" + role)));
+                snapshot.getPermissions().forEach(permission -> authorities.add(new SimpleGrantedAuthority(permission)));
+                return authorities;
+            } catch (RuntimeException ignored) {
+                // Fall back to token claims if the cache/database lookup is unavailable.
             }
-            GrantedAuthority authority = new SimpleGrantedAuthority("ROLE_" + role);
-            return List.of(authority);
+
+            List<String> roles = jwt.getClaimAsStringList("roles");
+            if (roles != null) {
+                roles.forEach(role -> authorities.add(new SimpleGrantedAuthority("ROLE_" + role)));
+            } else {
+                String role = jwt.getClaimAsString("role");
+                if (role != null) {
+                    authorities.add(new SimpleGrantedAuthority("ROLE_" + role));
+                }
+            }
+            List<String> permissions = jwt.getClaimAsStringList("permissions");
+            if (permissions != null) {
+                permissions.forEach(permission -> authorities.add(new SimpleGrantedAuthority(permission)));
+            }
+            return authorities;
         });
         return converter;
     }
 
     @Bean
-    public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
+    public SecurityFilterChain securityFilterChain(
+            HttpSecurity http,
+            JwtAuthenticationConverter jwtAuthenticationConverter) throws Exception {
         http
                 .cors(cors -> cors.configurationSource(corsConfigurationSource()))
                 .csrf(csrf -> csrf.disable())
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/ping").permitAll()
-                        .requestMatchers("/api/auth/**", "/api/admin/auth/**").permitAll()
+                        .requestMatchers(
+                                "/api/auth/login", "/api/v1/auth/login",
+                                "/api/auth/register", "/api/v1/auth/register",
+                                "/api/auth/refresh", "/api/v1/auth/refresh",
+                                "/api/auth/refresh-token", "/api/v1/auth/refresh-token",
+                                "/api/auth/verify-email", "/api/v1/auth/verify-email",
+                                "/api/auth/resend-verification", "/api/v1/auth/resend-verification",
+                                "/api/auth/forgot-password", "/api/v1/auth/forgot-password",
+                                "/api/auth/reset-password", "/api/v1/auth/reset-password",
+                                "/api/admin/auth/login", "/api/v1/admin/auth/login")
+                        .permitAll()
                         // Cho phép VNPay callback/redirect access không cần JWT
-                        .requestMatchers("/api/payments/vnpay/**").permitAll()
+                        .requestMatchers("/api/payments/vnpay/**", "/api/v1/payments/vnpay/**").permitAll()
                         // Cho phép public access cho product reviews (GET /api/reviews/product/{id})
                         .requestMatchers("/api/reviews/product/**").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/v1/catalog/**").permitAll()
                         .requestMatchers("/api/products/**", "/api/search/**", "/api/categories/**",
                                 "/api/addresses/**", "/api/collections/**")
                         .permitAll()
@@ -63,7 +98,7 @@ public class SecurityConfig {
                         .requestMatchers("/actuator/health").permitAll()
                         .anyRequest().authenticated())
                 .oauth2ResourceServer(oauth2 -> oauth2
-                        .jwt(jwt -> jwt.jwtAuthenticationConverter(jwtAuthenticationConverter())));
+                        .jwt(jwt -> jwt.jwtAuthenticationConverter(jwtAuthenticationConverter)));
 
         return http.build();
     }
