@@ -1,12 +1,14 @@
 package com.fashionvista.backend.exception;
 
 import com.fashionvista.backend.dto.sapo.SapoResponse;
+import org.springframework.core.annotation.Order;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
+@Order(1)
 @RestControllerAdvice(basePackages = "com.fashionvista.backend.controller.sapo")
 public class SapoExceptionHandler {
 
