@@ -43,8 +43,6 @@ public class SapoExceptionHandler {
     @ExceptionHandler(Exception.class)
     @ResponseStatus(HttpStatus.INTERNAL_SERVER_ERROR)
     public SapoResponse<Void> handleGeneric(Exception ex) {
-        String detail = ex.getClass().getSimpleName() + ": " + ex.getMessage();
-        if (ex.getCause() != null) detail += " | caused by: " + ex.getCause().getMessage();
-        return SapoResponse.error("Lỗi hệ thống — " + detail);
+        return SapoResponse.error("Lỗi hệ thống");
     }
 }
