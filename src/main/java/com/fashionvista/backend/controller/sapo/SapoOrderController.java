@@ -160,7 +160,7 @@ public class SapoOrderController {
             .status(OrderStatus.CONFIRMED)
             .paymentMethod(PaymentMethod.valueOf(req.getPaymentMethod()))
             .paymentStatus(PaymentStatus.PAID)
-            .shippingMethod("POS")
+            .shippingMethod("STANDARD")
             .shippingAddress("{\"type\":\"POS\",\"note\":\"Bán tại quầy Sapo\"}")
             .subtotal(subtotal)
             .shippingFee(shippingFee)
