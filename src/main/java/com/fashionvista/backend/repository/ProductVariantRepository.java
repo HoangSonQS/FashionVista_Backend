@@ -7,6 +7,7 @@ import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
+import org.springframework.transaction.annotation.Transactional;
 
 public interface ProductVariantRepository extends JpaRepository<ProductVariant, Long>, JpaSpecificationExecutor<ProductVariant> {
 
@@ -24,7 +25,8 @@ public interface ProductVariantRepository extends JpaRepository<ProductVariant, 
      * @param quantity số lượng cần trừ
      * @return số dòng được update (0 = không đủ tồn kho, 1 = thành công)
      */
-    @Modifying
+    @Transactional
+    @Modifying(clearAutomatically = true)
     @Query("""
         UPDATE ProductVariant v
            SET v.stock = v.stock - :quantity

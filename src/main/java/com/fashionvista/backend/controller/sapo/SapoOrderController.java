@@ -20,7 +20,7 @@ import com.fashionvista.backend.repository.ProductVariantRepository;
 import com.fashionvista.backend.repository.UserRepository;
 import com.fashionvista.backend.service.VoucherService;
 import jakarta.persistence.criteria.Predicate;
-import jakarta.transaction.Transactional;
+import org.springframework.transaction.annotation.Transactional;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Max;
 import java.math.BigDecimal;

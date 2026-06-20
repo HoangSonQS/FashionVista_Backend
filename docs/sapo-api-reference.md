@@ -1,6 +1,6 @@
-# FashionVista — Sapo Integration API Reference
+# Sixth Soul — Sapo Integration API Reference
 
-**Base URL:** `https://api.fashionvista.vn` (production) / `http://localhost:8085` (dev)  
+**Base URL:** `https://api.sixthsoul.com` (production) / `http://localhost:8085` (dev)  
 **Prefix:** `/api/sapo/v1`  
 **Auth:** Header `X-Api-Key: <provided_key>` on every request  
 **Format:** JSON, UTF-8  
@@ -354,7 +354,7 @@ Get full order detail. Use this to generate e-invoices — all required data is 
 ---
 
 ### POST /api/sapo/v1/orders
-Create a POS order in FashionVista. Stock is automatically decremented.
+Create a POS order in Sixth Soul. Stock is automatically decremented.
 
 **Request body:**
 ```json
@@ -401,4 +401,4 @@ Update order status (e.g., mark as DELIVERED after POS handoff).
 }
 ```
 
-Valid `status` transitions follow FashionVista business rules. Any `OrderStatus` value is accepted by the API but ensure transitions make logical sense.
+Valid `status` transitions follow Sixth Soul business rules. Any `OrderStatus` value is accepted by the API but ensure transitions make logical sense.
