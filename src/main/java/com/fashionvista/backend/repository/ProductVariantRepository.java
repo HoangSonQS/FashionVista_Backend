@@ -26,7 +26,7 @@ public interface ProductVariantRepository extends JpaRepository<ProductVariant, 
      * @return số dòng được update (0 = không đủ tồn kho, 1 = thành công)
      */
     @Transactional
-    @Modifying(clearAutomatically = true)
+    @Modifying
     @Query("""
         UPDATE ProductVariant v
            SET v.stock = v.stock - :quantity
