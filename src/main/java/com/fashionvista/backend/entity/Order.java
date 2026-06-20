@@ -94,6 +94,9 @@ public class Order {
     @Column(name = "tracking_number")
     private String trackingNumber;
 
+    @Column(name = "source", length = 32)
+    private String source;
+
     @OneToMany(mappedBy = "order", fetch = FetchType.LAZY, cascade = jakarta.persistence.CascadeType.ALL, orphanRemoval = true)
     @Builder.Default
     private List<OrderItem> items = new ArrayList<>();
