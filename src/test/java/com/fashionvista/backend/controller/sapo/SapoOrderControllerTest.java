@@ -1,7 +1,6 @@
 package com.fashionvista.backend.controller.sapo;
 
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -138,7 +137,7 @@ class SapoOrderControllerTest {
     void createOrder_validRequest_returns201() throws Exception {
         when(userRepository.findById(1L)).thenReturn(Optional.of(sampleUser));
         when(productVariantRepository.findBySku("AT-S-WHITE")).thenReturn(Optional.of(sampleVariant));
-        when(productVariantRepository.decreaseStockIfEnough(anyLong(), anyInt())).thenReturn(1);
+        when(productVariantRepository.save(any())).thenReturn(sampleVariant);
         when(orderRepository.save(any())).thenReturn(sampleOrder);
 
         SapoOrderItemRequest item = new SapoOrderItemRequest();
@@ -163,11 +162,10 @@ class SapoOrderControllerTest {
     void createOrder_insufficientStock_returns400() throws Exception {
         when(userRepository.findById(1L)).thenReturn(Optional.of(sampleUser));
         when(productVariantRepository.findBySku("AT-S-WHITE")).thenReturn(Optional.of(sampleVariant));
-        when(productVariantRepository.decreaseStockIfEnough(anyLong(), anyInt())).thenReturn(0);
 
         SapoOrderItemRequest item = new SapoOrderItemRequest();
         item.setSku("AT-S-WHITE");
-        item.setQuantity(100);
+        item.setQuantity(100); // sampleVariant.stock=20, so 100 > 20 → insufficient
         item.setUnitPrice(new BigDecimal("299000"));
 
         SapoOrderRequest req = new SapoOrderRequest();

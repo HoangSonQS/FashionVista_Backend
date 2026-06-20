@@ -112,21 +112,26 @@ public class SapoOrderController {
             ProductVariant variant = productVariantRepository.findBySku(itemReq.getSku())
                 .orElseThrow(() -> new SapoNotFoundException("SKU not found: " + itemReq.getSku()));
 
-            int updated = productVariantRepository.decreaseStockIfEnough(
-                variant.getId(), itemReq.getQuantity());
-            if (updated == 0) {
+            if (!variant.isActive() || variant.getStock() < itemReq.getQuantity()) {
                 throw new IllegalArgumentException(
                     "Insufficient stock for SKU: " + itemReq.getSku());
             }
+
+            // Eagerly resolve lazy associations before modifying stock
+            var product = variant.getProduct();
+            var productName = product.getName();
+
+            variant.setStock(variant.getStock() - itemReq.getQuantity());
+            productVariantRepository.save(variant);
 
             BigDecimal lineTotal = itemReq.getUnitPrice()
                 .multiply(BigDecimal.valueOf(itemReq.getQuantity()));
             subtotal = subtotal.add(lineTotal);
 
             orderItems.add(OrderItem.builder()
-                .product(variant.getProduct())
+                .product(product)
                 .variant(variant)
-                .productName(variant.getProduct().getName())
+                .productName(productName)
                 .price(itemReq.getUnitPrice())
                 .quantity(itemReq.getQuantity())
                 .subtotal(lineTotal)
