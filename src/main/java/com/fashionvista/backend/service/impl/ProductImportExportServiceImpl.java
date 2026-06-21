@@ -9,6 +9,8 @@ import com.fashionvista.backend.repository.CategoryRepository;
 import com.fashionvista.backend.repository.ProductRepository;
 import com.fashionvista.backend.service.ProductImportExportService;
 import java.io.BufferedReader;
+import java.io.IOException;
+import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
@@ -20,6 +22,12 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.StringJoiner;
 import java.util.stream.Collectors;
+import org.apache.poi.ss.usermodel.Cell;
+import org.apache.poi.ss.usermodel.CellType;
+import org.apache.poi.ss.usermodel.Row;
+import org.apache.poi.ss.usermodel.Sheet;
+import org.apache.poi.ss.usermodel.Workbook;
+import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 import lombok.RequiredArgsConstructor;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
@@ -106,51 +114,92 @@ public class ProductImportExportServiceImpl implements ProductImportExportServic
     @Override
     public ProductImportExportResult importProducts(MultipartFile file) {
         List<String> errors = new ArrayList<>();
-        int created = 0;
-        int updated = 0;
 
         if (file == null || file.isEmpty()) {
             errors.add("File rỗng hoặc không tồn tại.");
-            return ProductImportExportResult.builder()
-                .createdCount(0)
-                .updatedCount(0)
-                .errors(errors)
-                .build();
+            return ProductImportExportResult.builder().createdCount(0).updatedCount(0).errors(errors).build();
         }
 
+        String filename = file.getOriginalFilename() != null ? file.getOriginalFilename().toLowerCase(Locale.ROOT) : "";
+        String contentType = file.getContentType() != null ? file.getContentType().toLowerCase(Locale.ROOT) : "";
+        boolean isXlsx = filename.endsWith(".xlsx") || contentType.contains("spreadsheetml");
+
         Map<String, List<CsvRow>> grouped = new HashMap<>();
-        try (BufferedReader reader = new BufferedReader(new InputStreamReader(file.getInputStream(), StandardCharsets.UTF_8))) {
+        try (InputStream is = file.getInputStream()) {
+            if (isXlsx) {
+                parseXlsx(is, grouped, errors);
+            } else {
+                parseCsv(is, grouped, errors);
+            }
+        } catch (IOException ex) {
+            errors.add("Lỗi đọc file: " + ex.getMessage());
+            return ProductImportExportResult.builder().createdCount(0).updatedCount(0).errors(errors).build();
+        }
+
+        return processRows(grouped, errors);
+    }
+
+    private void parseCsv(InputStream is, Map<String, List<CsvRow>> grouped, List<String> errors) throws IOException {
+        try (BufferedReader reader = new BufferedReader(new InputStreamReader(is, StandardCharsets.UTF_8))) {
             String line;
             int lineNumber = 0;
             while ((line = reader.readLine()) != null) {
                 lineNumber++;
-                // Skip header
-                if (lineNumber == 1 && line.toLowerCase(Locale.ROOT).contains("name,slug,sku")) {
-                    continue;
-                }
-                if (line.isBlank()) {
-                    continue;
-                }
+                if (lineNumber == 1 && line.toLowerCase(Locale.ROOT).contains("name,slug,sku")) continue;
+                if (line.isBlank()) continue;
                 String[] parts = line.split(",", -1);
                 if (parts.length < HEADER.length) {
                     errors.add("Dòng " + lineNumber + " không đủ cột.");
                     continue;
                 }
                 CsvRow row = CsvRow.from(parts, lineNumber, errors);
-                if (row == null) {
-                    continue;
-                }
-                grouped.computeIfAbsent(row.sku(), k -> new ArrayList<>()).add(row);
+                if (row != null) grouped.computeIfAbsent(row.sku(), k -> new ArrayList<>()).add(row);
             }
-        } catch (Exception ex) {
-            errors.add("Lỗi đọc file: " + ex.getMessage());
-            return ProductImportExportResult.builder()
-                .createdCount(0)
-                .updatedCount(0)
-                .errors(errors)
-                .build();
         }
+    }
 
+    private void parseXlsx(InputStream is, Map<String, List<CsvRow>> grouped, List<String> errors) throws IOException {
+        try (Workbook wb = new XSSFWorkbook(is)) {
+            Sheet sheet = wb.getSheetAt(0);
+            int rowNum = 0;
+            for (Row row : sheet) {
+                rowNum++;
+                if (rowNum == 1) continue; // skip header
+                if (isRowBlank(row)) continue;
+                String[] parts = new String[HEADER.length];
+                for (int i = 0; i < HEADER.length; i++) {
+                    parts[i] = cellStr(row.getCell(i));
+                }
+                CsvRow csvRow = CsvRow.from(parts, rowNum, errors);
+                if (csvRow != null) grouped.computeIfAbsent(csvRow.sku(), k -> new ArrayList<>()).add(csvRow);
+            }
+        }
+    }
+
+    private boolean isRowBlank(Row row) {
+        for (int i = 0; i < HEADER.length; i++) {
+            if (!cellStr(row.getCell(i)).isBlank()) return false;
+        }
+        return true;
+    }
+
+    private String cellStr(Cell cell) {
+        if (cell == null) return "";
+        if (cell.getCellType() == CellType.NUMERIC) {
+            double v = cell.getNumericCellValue();
+            if (v == Math.floor(v)) return String.valueOf((long) v);
+            return String.valueOf(v);
+        }
+        if (cell.getCellType() == CellType.BOOLEAN) return String.valueOf(cell.getBooleanCellValue());
+        if (cell.getCellType() == CellType.FORMULA) {
+            try { return String.valueOf(cell.getNumericCellValue()); } catch (Exception ignored) {}
+        }
+        return cell.toString().trim();
+    }
+
+    private ProductImportExportResult processRows(Map<String, List<CsvRow>> grouped, List<String> errors) {
+        int created = 0;
+        int updated = 0;
         for (Map.Entry<String, List<CsvRow>> entry : grouped.entrySet()) {
             String productSku = entry.getKey();
             List<CsvRow> rows = entry.getValue();
