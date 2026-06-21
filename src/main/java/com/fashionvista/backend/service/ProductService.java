@@ -70,5 +70,7 @@ public interface ProductService {
      * @return danh sách sản phẩm đang giảm giá
      */
     List<ProductListItemDto> getSaleProducts(int limit);
+
+    List<ProductListItemDto> getRelatedProducts(String slug, int limit);
 }
 

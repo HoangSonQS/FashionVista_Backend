@@ -63,4 +63,11 @@ public class ProductController {
             @RequestParam(defaultValue = "24") @Min(1) int limit) {
         return productService.getSaleProducts(limit);
     }
+
+    @GetMapping("/products/{slug}/related")
+    public List<ProductListItemDto> getRelatedProducts(
+            @PathVariable String slug,
+            @RequestParam(defaultValue = "20") @Min(1) int limit) {
+        return productService.getRelatedProducts(slug, limit);
+    }
 }

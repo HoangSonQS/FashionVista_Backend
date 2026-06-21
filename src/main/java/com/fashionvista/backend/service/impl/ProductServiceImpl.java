@@ -513,6 +513,7 @@ public class ProductServiceImpl implements ProductService {
                 .thumbnailUrl(resolveThumbnail(product))
                 .hoverThumbnailUrl(resolveHoverThumbnail(product))
                 .category(product.getCategory() != null ? product.getCategory().getName() : null)
+                .tags(product.getTags())
                 .build();
     }
 
@@ -730,6 +731,51 @@ public class ProductServiceImpl implements ProductService {
         return hydrated.stream()
                 .map(this::toListItemDto)
                 .toList();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<ProductListItemDto> getRelatedProducts(String slug, int limit) {
+        int cap = Math.min(limit, 20);
+        Product current = productRepository.findBySlug(slug)
+                .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy sản phẩm: " + slug));
+
+        Long categoryId = current.getCategory() != null ? current.getCategory().getId() : null;
+
+        // Phase 1: same category, exclude current
+        Specification<Product> sameCatSpec = (root, query, cb) -> {
+            List<Predicate> p = new ArrayList<>();
+            p.add(cb.notEqual(root.get("id"), current.getId()));
+            p.add(cb.equal(root.get("status"), ProductStatus.ACTIVE));
+            p.add(cb.equal(root.get("isVisible"), true));
+            if (categoryId != null) {
+                p.add(cb.equal(root.get("category").get("id"), categoryId));
+            }
+            return cb.and(p.toArray(new Predicate[0]));
+        };
+        Pageable pg1 = PageRequest.of(0, cap, Sort.by(Sort.Direction.DESC, "createdAt"));
+        List<Product> phase1 = hydrateWithImages(productRepository.findAll(sameCatSpec, pg1));
+
+        List<Product> result = new ArrayList<>(phase1);
+
+        // Phase 2: fill remainder with products from other categories
+        if (result.size() < cap) {
+            int remaining = cap - result.size();
+            List<Long> excludeIds = result.stream().map(Product::getId).collect(java.util.stream.Collectors.toList());
+            excludeIds.add(current.getId());
+            Specification<Product> fillSpec = (root, query, cb) -> {
+                List<Predicate> p = new ArrayList<>();
+                p.add(root.get("id").in(excludeIds).not());
+                p.add(cb.equal(root.get("status"), ProductStatus.ACTIVE));
+                p.add(cb.equal(root.get("isVisible"), true));
+                return cb.and(p.toArray(new Predicate[0]));
+            };
+            Pageable pg2 = PageRequest.of(0, remaining, Sort.by(Sort.Direction.DESC, "createdAt"));
+            List<Product> phase2 = hydrateWithImages(productRepository.findAll(fillSpec, pg2));
+            result.addAll(phase2);
+        }
+
+        return result.stream().map(this::toListItemDto).toList();
     }
 
     /**

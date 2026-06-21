@@ -23,6 +23,7 @@ public class ProductListItemDto {
     String thumbnailUrl;
     String hoverThumbnailUrl;
     String category;
+    java.util.List<String> tags;
 
     /**
      * Legacy factory used by CollectionServiceImpl and other callers.
@@ -61,6 +62,7 @@ public class ProductListItemDto {
                 .map(com.fashionvista.backend.entity.ProductImage::getUrl)
                 .orElse(null))
             .category(product.getCategory() != null ? product.getCategory().getName() : null)
+            .tags(product.getTags())
             .build();
     }
 }
