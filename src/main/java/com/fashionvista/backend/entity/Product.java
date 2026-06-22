@@ -103,6 +103,7 @@ public class Product {
 
     // Relationships
     @OneToMany(mappedBy = "product", fetch = FetchType.LAZY, cascade = jakarta.persistence.CascadeType.ALL)
+    @jakarta.persistence.OrderBy("order ASC, createdAt ASC")
     @Builder.Default
     private List<ProductImage> images = new ArrayList<>();
 
