@@ -1,6 +1,7 @@
 package com.fashionvista.backend.service.impl;
 
 import com.fashionvista.backend.dto.ProductImportExportResult;
+import com.fashionvista.backend.dto.ProductImportPreviewDto;
 import com.fashionvista.backend.entity.Category;
 import com.fashionvista.backend.entity.Product;
 import com.fashionvista.backend.entity.ProductStatus;
@@ -114,29 +115,78 @@ public class ProductImportExportServiceImpl implements ProductImportExportServic
     @Override
     public ProductImportExportResult importProducts(MultipartFile file) {
         List<String> errors = new ArrayList<>();
-
         if (file == null || file.isEmpty()) {
             errors.add("File rỗng hoặc không tồn tại.");
             return ProductImportExportResult.builder().createdCount(0).updatedCount(0).errors(errors).build();
         }
-
-        String filename = file.getOriginalFilename() != null ? file.getOriginalFilename().toLowerCase(Locale.ROOT) : "";
-        String contentType = file.getContentType() != null ? file.getContentType().toLowerCase(Locale.ROOT) : "";
-        boolean isXlsx = filename.endsWith(".xlsx") || contentType.contains("spreadsheetml");
-
-        Map<String, List<CsvRow>> grouped = new HashMap<>();
-        try (InputStream is = file.getInputStream()) {
-            if (isXlsx) {
-                parseXlsx(is, grouped, errors);
+        try {
+            byte[] bytes = file.getBytes();
+            Map<String, List<CsvRow>> grouped = new HashMap<>();
+            if (isXlsxBytes(bytes)) {
+                parseXlsx(new java.io.ByteArrayInputStream(bytes), grouped, errors);
             } else {
-                parseCsv(is, grouped, errors);
+                parseCsv(new java.io.ByteArrayInputStream(bytes), grouped, errors);
             }
+            return processRows(grouped, errors);
         } catch (IOException ex) {
             errors.add("Lỗi đọc file: " + ex.getMessage());
             return ProductImportExportResult.builder().createdCount(0).updatedCount(0).errors(errors).build();
         }
+    }
 
-        return processRows(grouped, errors);
+    @Override
+    public ProductImportPreviewDto previewImport(MultipartFile file) {
+        List<String> parseErrors = new ArrayList<>();
+        if (file == null || file.isEmpty()) {
+            parseErrors.add("File rỗng hoặc không tồn tại.");
+            return ProductImportPreviewDto.builder().rows(List.of()).toCreate(0).toUpdate(0).parseErrors(parseErrors).build();
+        }
+        try {
+            byte[] bytes = file.getBytes();
+            Map<String, List<CsvRow>> grouped = new HashMap<>();
+            if (isXlsxBytes(bytes)) {
+                parseXlsx(new java.io.ByteArrayInputStream(bytes), grouped, parseErrors);
+            } else {
+                parseCsv(new java.io.ByteArrayInputStream(bytes), grouped, parseErrors);
+            }
+            List<ProductImportPreviewDto.Row> rows = new ArrayList<>();
+            int toCreate = 0, toUpdate = 0;
+            for (Map.Entry<String, List<CsvRow>> entry : grouped.entrySet()) {
+                List<CsvRow> csvRows = entry.getValue();
+                CsvRow first = csvRows.get(0);
+                boolean exists = productRepository.findBySku(entry.getKey()).isPresent()
+                    || (StringUtils.hasText(first.slug()) && productRepository.findBySlug(first.slug()).isPresent());
+                String action = exists ? "update" : "create";
+                if (exists) toUpdate++; else toCreate++;
+                rows.add(ProductImportPreviewDto.Row.builder()
+                    .rowNumber(first.lineNumber())
+                    .action(action)
+                    .sku(first.sku())
+                    .name(first.name())
+                    .slug(first.slug())
+                    .price(first.price())
+                    .category(first.categorySlug())
+                    .status(first.status())
+                    .variantCount((int) csvRows.stream().filter(r -> StringUtils.hasText(r.variantSku())).count())
+                    .build());
+            }
+            return ProductImportPreviewDto.builder()
+                .rows(rows)
+                .toCreate(toCreate)
+                .toUpdate(toUpdate)
+                .parseErrors(parseErrors)
+                .build();
+        } catch (IOException ex) {
+            parseErrors.add("Lỗi đọc file: " + ex.getMessage());
+            return ProductImportPreviewDto.builder().rows(List.of()).toCreate(0).toUpdate(0).parseErrors(parseErrors).build();
+        }
+    }
+
+    // XLSX có magic bytes ZIP: 50 4B 03 04
+    private boolean isXlsxBytes(byte[] bytes) {
+        return bytes.length >= 4
+            && bytes[0] == 0x50 && bytes[1] == 0x4B
+            && bytes[2] == 0x03 && bytes[3] == 0x04;
     }
 
     private void parseCsv(InputStream is, Map<String, List<CsvRow>> grouped, List<String> errors) throws IOException {
@@ -205,6 +255,13 @@ public class ProductImportExportServiceImpl implements ProductImportExportServic
             List<CsvRow> rows = entry.getValue();
             try {
                 Optional<Product> existingOpt = productRepository.findBySku(productSku);
+                // Also check by slug to avoid duplicate slug constraint when re-importing
+                if (existingOpt.isEmpty()) {
+                    CsvRow firstCheck = rows.get(0);
+                    if (StringUtils.hasText(firstCheck.slug())) {
+                        existingOpt = productRepository.findBySlug(firstCheck.slug());
+                    }
+                }
                 if (existingOpt.isEmpty()) {
                     // create
                     Product product = new Product();

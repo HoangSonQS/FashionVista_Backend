@@ -1,6 +1,7 @@
 package com.fashionvista.backend.controller;
 
 import com.fashionvista.backend.dto.ProductImportExportResult;
+import com.fashionvista.backend.dto.ProductImportPreviewDto;
 import com.fashionvista.backend.service.ProductImportExportService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpHeaders;
@@ -43,6 +44,11 @@ public class AdminProductImportExportController {
             .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=products.csv")
             .contentType(MediaType.parseMediaType("text/csv"))
             .body(content);
+    }
+
+    @PostMapping(value = "/import-preview", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ProductImportPreviewDto previewImport(@RequestParam("file") MultipartFile file) {
+        return importExportService.previewImport(file);
     }
 
     @PostMapping(value = "/import", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
