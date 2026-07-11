@@ -10,6 +10,8 @@ import com.fashionvista.backend.repository.ProductRepository;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -87,9 +89,21 @@ public class SapoProductSyncService {
         List<SapoProductPushResponse.Variant> returnedVariants = response.getProduct().getVariants();
         List<ProductVariant> localVariants = product.getVariants();
         if (returnedVariants != null) {
-            int count = Math.min(returnedVariants.size(), localVariants.size());
-            for (int i = 0; i < count; i++) {
-                localVariants.get(i).setSapoVariantId(returnedVariants.get(i).getId());
+            Map<String, ProductVariant> localVariantsBySku = localVariants.stream()
+                    .collect(Collectors.toMap(ProductVariant::getSku, v -> v, (a, b) -> a));
+            for (SapoProductPushResponse.Variant returnedVariant : returnedVariants) {
+                String sku = returnedVariant.getSku();
+                if (sku == null) {
+                    log.debug("Sapo product sync: returned variant id={} has no SKU, skipping match.",
+                            returnedVariant.getId());
+                    continue;
+                }
+                ProductVariant matched = localVariantsBySku.get(sku);
+                if (matched == null) {
+                    log.debug("Sapo product sync: returned variant sku={} has no local match, skipping.", sku);
+                    continue;
+                }
+                matched.setSapoVariantId(returnedVariant.getId());
             }
         }
     }

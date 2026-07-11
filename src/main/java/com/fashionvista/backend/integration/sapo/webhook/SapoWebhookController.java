@@ -45,7 +45,13 @@ public class SapoWebhookController {
 
         ProductVariant variant = resolveVariant(payload);
         if (variant == null) {
-            log.warn("Sapo inventory webhook: no local variant found for variantId={} sku={}",
+            log.debug("Sapo inventory webhook: no local variant found for variantId={} sku={}",
+                    payload.getVariantId(), payload.getSku());
+            return ResponseEntity.ok().build();
+        }
+
+        if (payload.getInventoryQuantity() == null) {
+            log.warn("Sapo inventory webhook: missing inventoryQuantity for variantId={} sku={}",
                     payload.getVariantId(), payload.getSku());
             return ResponseEntity.ok().build();
         }

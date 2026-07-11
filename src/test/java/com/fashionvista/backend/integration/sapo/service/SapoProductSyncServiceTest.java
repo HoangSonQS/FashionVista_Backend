@@ -107,6 +107,43 @@ class SapoProductSyncServiceTest {
     }
 
     @Test
+    void pushProduct_MultipleVariantsReturnedOutOfOrder_MatchesBySkuNotIndex() {
+        ProductVariant secondVariant = ProductVariant.builder()
+                .id(11L)
+                .product(product)
+                .size("L")
+                .color("Blue")
+                .sku("SKU-L-BLUE")
+                .price(BigDecimal.valueOf(120000))
+                .stock(3)
+                .build();
+        product.getVariants().add(secondVariant);
+
+        // Sapo returns the variants in the OPPOSITE order from the local list.
+        SapoProductPushResponse.Variant returnedFirst = new SapoProductPushResponse.Variant();
+        returnedFirst.setId("sapo-var-L-BLUE");
+        returnedFirst.setSku("SKU-L-BLUE");
+
+        SapoProductPushResponse.Variant returnedSecond = new SapoProductPushResponse.Variant();
+        returnedSecond.setId("sapo-var-M-RED");
+        returnedSecond.setSku("SKU-M-RED");
+
+        SapoProductPushResponse.Product responseProduct = new SapoProductPushResponse.Product();
+        responseProduct.setId("sapo-prod-1");
+        responseProduct.setVariants(List.of(returnedFirst, returnedSecond));
+
+        SapoProductPushResponse response = new SapoProductPushResponse();
+        response.setProduct(responseProduct);
+
+        when(sapoApiClient.createProduct(any(SapoProductPushRequest.class))).thenReturn(response);
+
+        service.pushProduct(product);
+
+        assertEquals("sapo-var-M-RED", variant.getSapoVariantId());
+        assertEquals("sapo-var-L-BLUE", secondVariant.getSapoVariantId());
+    }
+
+    @Test
     void pushProduct_ClientThrows_MarksFailedAndStillSaves() {
         when(sapoApiClient.createProduct(any(SapoProductPushRequest.class)))
                 .thenThrow(new RestClientException("Sapo unreachable"));

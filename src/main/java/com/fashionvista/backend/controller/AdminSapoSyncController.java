@@ -8,7 +8,9 @@ import com.fashionvista.backend.repository.ProductRepository;
 import java.util.ArrayList;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -24,14 +26,17 @@ public class AdminSapoSyncController {
     private final SapoProductSyncService sapoProductSyncService;
 
     @PostMapping("/{id}/retry-sync")
-    public void retrySync(@PathVariable Long id) {
+    @Transactional
+    public ResponseEntity<Void> retrySync(@PathVariable Long id) {
         Product product = productRepository.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy sản phẩm."));
         sapoProductSyncService.pushProduct(product);
+        return ResponseEntity.ok().build();
     }
 
     @PostMapping("/migrate")
-    public SapoMigrationSummary migrate() {
+    @Transactional
+    public ResponseEntity<SapoMigrationSummary> migrate() {
         List<Product> pending = productRepository.findBySapoSyncStatusNot(SapoSyncStatus.SYNCED);
         int succeeded = 0;
         List<Long> failedIds = new ArrayList<>();
@@ -45,11 +50,12 @@ public class AdminSapoSyncController {
             }
         }
 
-        return SapoMigrationSummary.builder()
+        SapoMigrationSummary summary = SapoMigrationSummary.builder()
                 .totalScanned(pending.size())
                 .succeeded(succeeded)
                 .failed(failedIds.size())
                 .failedProductIds(failedIds)
                 .build();
+        return ResponseEntity.ok(summary);
     }
 }
