@@ -101,6 +101,20 @@ public class Product {
     @Builder.Default
     private List<String> tags = new ArrayList<>();
 
+    @Column(name = "sapo_product_id")
+    private String sapoProductId;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "sapo_sync_status", nullable = false)
+    @Builder.Default
+    private SapoSyncStatus sapoSyncStatus = SapoSyncStatus.PENDING;
+
+    @Column(name = "sapo_sync_error", columnDefinition = "TEXT")
+    private String sapoSyncError;
+
+    @Column(name = "sapo_synced_at")
+    private LocalDateTime sapoSyncedAt;
+
     // Relationships
     @OneToMany(mappedBy = "product", fetch = FetchType.LAZY, cascade = jakarta.persistence.CascadeType.ALL)
     @jakarta.persistence.OrderBy("order ASC, createdAt ASC")
