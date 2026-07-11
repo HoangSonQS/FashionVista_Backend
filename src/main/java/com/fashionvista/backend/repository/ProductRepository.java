@@ -1,6 +1,7 @@
 package com.fashionvista.backend.repository;
 
 import com.fashionvista.backend.entity.Product;
+import com.fashionvista.backend.entity.SapoSyncStatus;
 import java.util.Optional;
 import java.util.List;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -19,4 +20,6 @@ public interface ProductRepository extends JpaRepository<Product, Long>, JpaSpec
 
     @Query("select distinct p from Product p left join fetch p.images where p.id in :ids")
     List<Product> findAllWithImagesByIdIn(List<Long> ids);
+
+    List<Product> findBySapoSyncStatusNot(SapoSyncStatus sapoSyncStatus);
 }
