@@ -41,11 +41,14 @@ public class SapoWebhookController {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
         }
 
+        // TEMPORARY DIAGNOSTIC LOGGING - remove after confirming real Sapo payload schema
+        log.info("Sapo inventory webhook raw body: {}", new String(rawBody, java.nio.charset.StandardCharsets.UTF_8));
+
         SapoWebhookInventoryPayload payload = objectMapper.readValue(rawBody, SapoWebhookInventoryPayload.class);
 
         ProductVariant variant = resolveVariant(payload);
         if (variant == null) {
-            log.debug("Sapo inventory webhook: no local variant found for variantId={} sku={}",
+            log.info("Sapo inventory webhook: no local variant found for variantId={} sku={}",
                     payload.getVariantId(), payload.getSku());
             return ResponseEntity.ok().build();
         }
