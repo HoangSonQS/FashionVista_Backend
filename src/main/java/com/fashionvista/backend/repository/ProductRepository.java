@@ -21,5 +21,6 @@ public interface ProductRepository extends JpaRepository<Product, Long>, JpaSpec
     @Query("select distinct p from Product p left join fetch p.images where p.id in :ids")
     List<Product> findAllWithImagesByIdIn(List<Long> ids);
 
+    @Query("select distinct p from Product p left join fetch p.variants where p.sapoSyncStatus <> :sapoSyncStatus")
     List<Product> findBySapoSyncStatusNot(SapoSyncStatus sapoSyncStatus);
 }

@@ -35,7 +35,6 @@ public class AdminSapoSyncController {
     }
 
     @PostMapping("/migrate")
-    @Transactional
     public ResponseEntity<SapoMigrationSummary> migrate() {
         List<Product> pending = productRepository.findBySapoSyncStatusNot(SapoSyncStatus.SYNCED);
         int succeeded = 0;
