@@ -5,6 +5,7 @@ import com.fashionvista.backend.integration.sapo.dto.SapoProductPushRequest;
 import com.fashionvista.backend.integration.sapo.dto.SapoProductPushResponse;
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.client.SimpleClientHttpRequestFactory;
@@ -18,6 +19,7 @@ public class SapoApiClient {
 
     private final RestClient restClient;
 
+    @Autowired
     public SapoApiClient(SapoOutboundProperties properties) {
         this(buildRestClient(properties));
     }
