@@ -154,4 +154,16 @@ class SapoProductSyncServiceTest {
         assertEquals("Sapo unreachable", product.getSapoSyncError());
         verify(productRepository).save(product);
     }
+
+    @Test
+    void pushProduct_UnexpectedRuntimeException_MarksFailedAndStillSaves() {
+        when(sapoApiClient.createProduct(any(SapoProductPushRequest.class)))
+                .thenThrow(new IllegalStateException("Unexpected Sapo response shape"));
+
+        service.pushProduct(product);
+
+        assertEquals(SapoSyncStatus.FAILED, product.getSapoSyncStatus());
+        assertEquals("Unexpected Sapo response shape", product.getSapoSyncError());
+        verify(productRepository).save(product);
+    }
 }

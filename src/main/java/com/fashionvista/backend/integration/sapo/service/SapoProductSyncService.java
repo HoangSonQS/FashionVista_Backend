@@ -17,7 +17,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.web.client.RestClientException;
 
 @Service
 @RequiredArgsConstructor
@@ -37,7 +36,7 @@ public class SapoProductSyncService {
                     ? sapoApiClient.createProduct(request)
                     : sapoApiClient.updateProduct(product.getSapoProductId(), request);
             applySuccess(product, response);
-        } catch (RestClientException ex) {
+        } catch (RuntimeException ex) {
             log.error("Sapo sync failed for product id={}: {}", product.getId(), ex.getMessage(), ex);
             applyFailure(product, ex.getMessage());
         }
