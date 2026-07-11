@@ -24,9 +24,9 @@ none found in the codebase as of this writing).
 
 ## Out of scope / explicit non-goals
 
-- OAuth2 token acquisition flow — a static long-lived Sapo access token is
-  assumed to already exist (provided out of band, stored as a property/env
-  var, like the existing `sapo.api.key` pattern)
+- OAuth2 / public-app token flow — this integration uses a **private app**:
+  Sapo issues an API key + API secret pair once, used directly as HTTP Basic
+  Auth credentials on every request (no token exchange, no expiry/refresh)
 - Automatic webhook registration on Sapo (the `POST /admin/webhooks.json`
   call) — done manually once a production webhook URL exists
 - Automatic retry job/scheduler for failed syncs — retry is a manual
@@ -44,7 +44,7 @@ module:
 ```
 integration/sapo/
   client/SapoApiClient.java            # WebClient wrapper calling out to Sapo Admin REST API
-  config/SapoOutboundProperties.java   # access token, base URL, webhook secret
+  config/SapoOutboundProperties.java   # api key, api secret, store domain, webhook secret
   service/SapoProductSyncService.java  # push Product/Variant create+update
   service/SapoInventorySyncService.java# push absolute stock value
   webhook/SapoWebhookController.java   # receives inventory_levels/update
@@ -79,8 +79,13 @@ update path, after the local DB save succeeds.
 
 **Create:**
 1. Save Product/Variant locally first (web DB is source of truth)
-2. Call `POST /admin/products.json` via `SapoApiClient` with header
-   `X-Sapo-Access-Token`
+2. Call `POST https://{store-domain}/admin/products.json` via `SapoApiClient`,
+   authenticated with **HTTP Basic Auth** (API key = username, API secret =
+   password) set on the `Authorization` header — functionally identical to
+   Sapo's documented `https://{api_key}:{api_secret}@{store}.mysapo.net/...`
+   URL-embedded form, but built as a proper `Authorization: Basic <base64>`
+   header instead of concatenating credentials into the URL string, so they
+   never end up in request logs/traces on our side
 3. Success → parse returned `product_id`/`variant_id`, update the local
    record: `sapoProductId`, `sapoVariantId`, `sapoSyncStatus=SYNCED`,
    `sapoSyncedAt=now()`
@@ -144,6 +149,22 @@ POST /api/admin/sapo/products/migrate
 - Runs synchronously within the request given current catalog size; if the
   catalog grows large enough that this becomes a timeout risk, moving it to a
   background job is a known future improvement, not built now
+
+## Configuration (env vars)
+
+Distinct names from the existing inbound `SAPO_API_KEY` (that one is a key
+*we* issue to Sapo; these are credentials *Sapo* issues to us):
+
+```properties
+sapo.outbound.api-key=${SAPO_OUTBOUND_API_KEY:dev-key-change-me}
+sapo.outbound.api-secret=${SAPO_OUTBOUND_API_SECRET:dev-secret-change-me}
+sapo.outbound.store-domain=${SAPO_STORE_DOMAIN:your-store.mysapo.net}
+sapo.outbound.webhook-secret=${SAPO_WEBHOOK_SECRET:dev-webhook-secret-change-me}
+```
+
+Real values go in `.env` (not committed, not read/written by the assistant
+per project convention) — `SAPO_OUTBOUND_API_KEY`, `SAPO_OUTBOUND_API_SECRET`,
+`SAPO_STORE_DOMAIN`, `SAPO_WEBHOOK_SECRET`.
 
 ## Testing plan
 
