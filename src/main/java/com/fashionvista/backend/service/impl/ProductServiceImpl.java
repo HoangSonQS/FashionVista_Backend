@@ -20,6 +20,7 @@ import com.fashionvista.backend.repository.ProductRepository;
 import com.fashionvista.backend.repository.ProductVariantRepository;
 import com.fashionvista.backend.service.CloudinaryService;
 import com.fashionvista.backend.service.ProductService;
+import com.fashionvista.backend.integration.sapo.service.SapoProductSyncService;
 import jakarta.persistence.criteria.Join;
 import jakarta.persistence.criteria.JoinType;
 import jakarta.persistence.criteria.Predicate;
@@ -49,6 +50,7 @@ public class ProductServiceImpl implements ProductService {
     private final ProductVariantRepository productVariantRepository;
     private final ProductImageRepository productImageRepository;
     private final CloudinaryService cloudinaryService;
+    private final SapoProductSyncService sapoProductSyncService;
 
     @Override
     @Transactional(readOnly = true)
@@ -203,6 +205,8 @@ public class ProductServiceImpl implements ProductService {
                 }
             }
 
+            sapoProductSyncService.pushProduct(saved);
+
             return getProductBySlug(saved.getSlug());
         } catch (RuntimeException e) {
             cleanupUploadedImages(uploadedPublicIds);
@@ -334,6 +338,7 @@ public class ProductServiceImpl implements ProductService {
             }
 
             productRepository.save(product);
+            sapoProductSyncService.pushProduct(product);
             return toDetailDto(product);
         } catch (RuntimeException ex) {
             cleanupUploadedImages(uploadedPublicIds);
