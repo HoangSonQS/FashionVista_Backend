@@ -38,6 +38,8 @@ class ProductServiceImplTest {
     private ProductImageRepository productImageRepository;
     @Mock
     private CloudinaryService cloudinaryService;
+    @Mock
+    private com.fashionvista.backend.integration.sapo.service.SapoProductSyncService sapoProductSyncService;
 
     @InjectMocks
     private ProductServiceImpl productService;

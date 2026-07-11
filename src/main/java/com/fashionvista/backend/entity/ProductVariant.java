@@ -58,6 +58,9 @@ public class ProductVariant {
     @Builder.Default
     private boolean isActive = true;
 
+    @Column(name = "sapo_variant_id")
+    private String sapoVariantId;
+
     @Version
     @Column(nullable = false)
     private Long version; // Optimistic locking để xử lý concurrency
