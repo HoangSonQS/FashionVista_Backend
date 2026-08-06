@@ -2,6 +2,7 @@ package com.fashionvista.backend.service.impl;
 
 import com.fashionvista.backend.dto.*;
 import com.fashionvista.backend.entity.*;
+import com.fashionvista.backend.integration.sapo.service.SapoOrderSyncService;
 import com.fashionvista.backend.repository.*;
 import com.fashionvista.backend.service.EmailService;
 import com.fashionvista.backend.service.LoyaltyService;
@@ -54,6 +55,8 @@ class AdminOrderServiceImplTest {
     private EmailService emailService;
     @Mock
     private LoyaltyService loyaltyService;
+    @Mock
+    private SapoOrderSyncService sapoOrderSyncService;
 
     @InjectMocks
     private AdminOrderServiceImpl adminOrderService;
