@@ -1,8 +1,14 @@
 package com.fashionvista.backend.integration.sapo.webhook;
 
+import com.fashionvista.backend.dto.UpdateOrderStatusRequest;
+import com.fashionvista.backend.entity.Order;
+import com.fashionvista.backend.entity.OrderStatus;
 import com.fashionvista.backend.entity.ProductVariant;
 import com.fashionvista.backend.integration.sapo.dto.SapoWebhookInventoryPayload;
+import com.fashionvista.backend.integration.sapo.dto.SapoWebhookOrderPayload;
+import com.fashionvista.backend.repository.OrderRepository;
 import com.fashionvista.backend.repository.ProductVariantRepository;
+import com.fashionvista.backend.service.AdminOrderService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.servlet.http.HttpServletRequest;
 import java.io.IOException;
@@ -27,6 +33,8 @@ public class SapoWebhookController {
 
     private final SapoHmacVerifier hmacVerifier;
     private final ProductVariantRepository productVariantRepository;
+    private final OrderRepository orderRepository;
+    private final AdminOrderService adminOrderService;
     private final ObjectMapper objectMapper;
 
     @PostMapping("/inventory-update")
@@ -61,6 +69,49 @@ public class SapoWebhookController {
 
         variant.setStock(payload.getInventoryQuantity());
         productVariantRepository.save(variant);
+        return ResponseEntity.ok().build();
+    }
+
+    @PostMapping("/order-fulfilled")
+    @Transactional
+    public ResponseEntity<Void> handleOrderFulfilled(
+            HttpServletRequest request,
+            @RequestHeader(value = "X-Sapo-Hmac-SHA256", required = false) String signature) throws IOException {
+        return handleOrderStatusWebhook(request, signature, OrderStatus.DELIVERED,
+                "Sapo xác nhận đơn hàng đã giao (orders/fulfilled).");
+    }
+
+    @PostMapping("/order-cancelled")
+    @Transactional
+    public ResponseEntity<Void> handleOrderCancelled(
+            HttpServletRequest request,
+            @RequestHeader(value = "X-Sapo-Hmac-SHA256", required = false) String signature) throws IOException {
+        return handleOrderStatusWebhook(request, signature, OrderStatus.CANCELLED,
+                "Sapo xác nhận đơn hàng đã hủy (orders/cancelled).");
+    }
+
+    private ResponseEntity<Void> handleOrderStatusWebhook(
+            HttpServletRequest request,
+            String signature,
+            OrderStatus newStatus,
+            String note) throws IOException {
+
+        byte[] rawBody = request.getInputStream().readAllBytes();
+
+        if (!hmacVerifier.isValid(rawBody, signature)) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        }
+
+        SapoWebhookOrderPayload payload = objectMapper.readValue(rawBody, SapoWebhookOrderPayload.class);
+
+        Optional<Order> order = orderRepository.findBySapoOrderId(payload.getId());
+        if (order.isEmpty()) {
+            log.info("Sapo order webhook: no local order found for sapoOrderId={}", payload.getId());
+            return ResponseEntity.ok().build();
+        }
+
+        adminOrderService.updateOrderStatus(order.get().getId(),
+                new UpdateOrderStatusRequest(newStatus, null, false, note));
         return ResponseEntity.ok().build();
     }
 

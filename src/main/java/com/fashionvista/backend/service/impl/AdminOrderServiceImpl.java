@@ -17,6 +17,7 @@ import com.fashionvista.backend.entity.Payment;
 import com.fashionvista.backend.entity.OrderItem;
 import com.fashionvista.backend.entity.Product;
 import com.fashionvista.backend.entity.ProductVariant;
+import com.fashionvista.backend.integration.sapo.service.SapoOrderSyncService;
 import com.fashionvista.backend.repository.OrderHistoryRepository;
 import com.fashionvista.backend.repository.OrderItemRepository;
 import com.fashionvista.backend.repository.OrderRepository;
@@ -63,6 +64,7 @@ public class AdminOrderServiceImpl implements AdminOrderService {
     private final com.fashionvista.backend.service.UserContextService userContextService;
     private final EmailService emailService;
     private final LoyaltyService loyaltyService;
+    private final SapoOrderSyncService sapoOrderSyncService;
 
     @Override
     @Transactional(readOnly = true)
@@ -138,6 +140,10 @@ public class AdminOrderServiceImpl implements AdminOrderService {
         recordHistory(saved, "status", oldStatus.name(), saved.getStatus().name(), request.getNotes());
         if (oldPaymentStatus != saved.getPaymentStatus()) {
             recordHistory(saved, "paymentStatus", oldPaymentStatus.name(), saved.getPaymentStatus().name(), request.getNotes());
+        }
+
+        if (saved.getStatus() == OrderStatus.CONFIRMED && oldStatus != OrderStatus.CONFIRMED) {
+            sapoOrderSyncService.pushOrder(saved.getId());
         }
 
         // Nếu là đơn COD và lần đầu chuyển sang DELIVERED, tự động cập nhật payment status thành PAID

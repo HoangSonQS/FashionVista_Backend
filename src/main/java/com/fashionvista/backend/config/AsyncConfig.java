@@ -20,6 +20,17 @@ public class AsyncConfig {
         executor.initialize();
         return executor;
     }
+
+    @Bean(name = "sapoOrderTaskExecutor")
+    public Executor sapoOrderTaskExecutor() {
+        ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
+        executor.setCorePoolSize(2);
+        executor.setMaxPoolSize(5);
+        executor.setQueueCapacity(50);
+        executor.setThreadNamePrefix("sapo-order-");
+        executor.initialize();
+        return executor;
+    }
 }
 
 

@@ -4,6 +4,7 @@ import com.fashionvista.backend.entity.Order;
 import com.fashionvista.backend.entity.OrderStatus;
 import com.fashionvista.backend.entity.PaymentMethod;
 import com.fashionvista.backend.entity.PaymentStatus;
+import com.fashionvista.backend.entity.SapoSyncStatus;
 import com.fashionvista.backend.entity.User;
 import com.fashionvista.backend.repository.projection.TopCustomerProjection;
 import java.math.BigDecimal;
@@ -44,6 +45,10 @@ public interface OrderRepository extends JpaRepository<Order, Long>, JpaSpecific
             PaymentStatus paymentStatus);
 
     List<Order> findByCreatedAtBetween(LocalDateTime start, LocalDateTime end);
+
+    Optional<Order> findBySapoOrderId(String sapoOrderId);
+
+    List<Order> findBySapoSyncStatusAndStatus(SapoSyncStatus sapoSyncStatus, OrderStatus status);
 
     @Query("SELECT o.user.id AS userId, o.user.fullName AS fullName, o.user.email AS email, " +
             "COUNT(o) AS totalOrders, SUM(o.total) AS totalSpent " +
