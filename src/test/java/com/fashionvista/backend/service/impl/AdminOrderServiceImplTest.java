@@ -185,4 +185,55 @@ class AdminOrderServiceImplTest {
 
         assertThrows(IllegalArgumentException.class, () -> adminOrderService.updateTrackingNumber(1L, request));
     }
+
+    @Test
+    void updateOrderStatus_UserContextThrows_FallsBackToAdminLogWithoutThrowing() {
+        // Simulates a webhook-triggered call (e.g. Sapo order-fulfilled webhook), which carries
+        // no authenticated SecurityContext, so userContextService.getCurrentUser() throws.
+        when(userContextService.getCurrentUser()).thenThrow(new IllegalStateException("No authentication found"));
+        when(orderRepository.findById(1L)).thenReturn(Optional.of(order));
+        when(orderRepository.save(any(Order.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(orderHistoryRepository.findByOrderIdOrderByCreatedAtAsc(1L)).thenReturn(new ArrayList<>());
+
+        UpdateOrderStatusRequest request = new UpdateOrderStatusRequest(
+                OrderStatus.PENDING, PaymentStatus.PENDING, false, null);
+
+        assertDoesNotThrow(() -> adminOrderService.updateOrderStatus(1L, request));
+        assertTrue(order.getNotes().contains("Admin cập nhật đơn hàng"),
+                "Expected fallback actor 'Admin' (no email) in notes when no authenticated user is present");
+    }
+
+    @Test
+    void updateOrderStatus_TransitionsIntoConfirmed_TriggersSapoOrderPush() {
+        User admin = User.builder().id(2L).email("admin@example.com").build();
+        when(userContextService.getCurrentUser()).thenReturn(admin);
+        order.setStatus(OrderStatus.PENDING);
+        when(orderRepository.findById(1L)).thenReturn(Optional.of(order));
+        when(orderRepository.save(any(Order.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(orderHistoryRepository.findByOrderIdOrderByCreatedAtAsc(1L)).thenReturn(new ArrayList<>());
+
+        UpdateOrderStatusRequest request = new UpdateOrderStatusRequest(
+                OrderStatus.CONFIRMED, PaymentStatus.PENDING, false, null);
+
+        adminOrderService.updateOrderStatus(1L, request);
+
+        verify(sapoOrderSyncService).pushOrder(1L);
+    }
+
+    @Test
+    void updateOrderStatus_AlreadyConfirmed_DoesNotRetriggerSapoOrderPush() {
+        User admin = User.builder().id(2L).email("admin@example.com").build();
+        when(userContextService.getCurrentUser()).thenReturn(admin);
+        order.setStatus(OrderStatus.CONFIRMED);
+        when(orderRepository.findById(1L)).thenReturn(Optional.of(order));
+        when(orderRepository.save(any(Order.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(orderHistoryRepository.findByOrderIdOrderByCreatedAtAsc(1L)).thenReturn(new ArrayList<>());
+
+        UpdateOrderStatusRequest request = new UpdateOrderStatusRequest(
+                OrderStatus.CONFIRMED, PaymentStatus.PENDING, false, null);
+
+        adminOrderService.updateOrderStatus(1L, request);
+
+        verify(sapoOrderSyncService, never()).pushOrder(any());
+    }
 }
