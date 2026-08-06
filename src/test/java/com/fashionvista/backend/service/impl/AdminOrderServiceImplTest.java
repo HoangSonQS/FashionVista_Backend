@@ -236,4 +236,30 @@ class AdminOrderServiceImplTest {
 
         verify(sapoOrderSyncService, never()).pushOrder(any());
     }
+
+    @Test
+    void bulkUpdateStatus_TransitionsIntoConfirmed_TriggersSapoOrderPush() {
+        order.setStatus(OrderStatus.PENDING);
+        when(orderRepository.findAllById(List.of(1L))).thenReturn(List.of(order));
+
+        BulkUpdateOrderStatusRequest request = new BulkUpdateOrderStatusRequest(
+                List.of(1L), OrderStatus.CONFIRMED, null, null, false);
+
+        adminOrderService.bulkUpdateStatus(request);
+
+        verify(sapoOrderSyncService).pushOrder(1L);
+    }
+
+    @Test
+    void bulkUpdateStatus_AlreadyConfirmed_DoesNotRetriggerSapoOrderPush() {
+        order.setStatus(OrderStatus.CONFIRMED);
+        when(orderRepository.findAllById(List.of(1L))).thenReturn(List.of(order));
+
+        BulkUpdateOrderStatusRequest request = new BulkUpdateOrderStatusRequest(
+                List.of(1L), OrderStatus.CONFIRMED, null, null, false);
+
+        adminOrderService.bulkUpdateStatus(request);
+
+        verify(sapoOrderSyncService, never()).pushOrder(any());
+    }
 }

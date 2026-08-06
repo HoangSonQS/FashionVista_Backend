@@ -233,11 +233,15 @@ public class AdminOrderServiceImpl implements AdminOrderService {
         }
         List<Order> orders = orderRepository.findAllById(request.getOrderIds());
         LocalDateTime now = LocalDateTime.now();
+        List<Long> confirmedOrderIds = new ArrayList<>();
         for (Order order : orders) {
             OrderStatus oldStatus = order.getStatus();
             PaymentStatus oldPaymentStatus = order.getPaymentStatus();
 
             order.setStatus(request.getStatus());
+            if (order.getStatus() == OrderStatus.CONFIRMED && oldStatus != OrderStatus.CONFIRMED) {
+                confirmedOrderIds.add(order.getId());
+            }
             if (request.getPaymentStatus() != null && request.getPaymentStatus() != order.getPaymentStatus()) {
                 // Validation: Với đơn COD, chỉ cho phép đổi payment status thành PAID khi order status là DELIVERED
                 if (order.getPaymentMethod() == PaymentMethod.COD
@@ -281,6 +285,9 @@ public class AdminOrderServiceImpl implements AdminOrderService {
             }
         }
         orderRepository.saveAll(orders);
+        for (Long confirmedOrderId : confirmedOrderIds) {
+            sapoOrderSyncService.pushOrder(confirmedOrderId);
+        }
     }
 
     private Specification<Order> buildSpecification(
