@@ -25,7 +25,7 @@ import org.springframework.transaction.annotation.Transactional;
 public class SapoOrderSyncService {
 
     private static final Logger log = LoggerFactory.getLogger(SapoOrderSyncService.class);
-    private static final String SOURCE_NAME = "web";
+    private static final String SOURCE_NAME = "fashionvista";
     private static final String FINANCIAL_STATUS_PAID = "paid";
     private static final String FINANCIAL_STATUS_PENDING = "pending";
 
