@@ -7,7 +7,7 @@ REST API and business logic for FashionVista e-commerce. Java Spring Boot applic
 | Layer | Technology |
 |-------|-----------|
 | Language | Java 17 |
-| Framework | Spring Boot 3.x |
+| Framework | Spring Boot 4.0.0 |
 | Build | Maven (mvnw wrapper) |
 | Database | MySQL / PostgreSQL (via JPA/Hibernate) |
 | Auth | Spring Security + JWT |
@@ -77,3 +77,9 @@ docker-compose -f docker-compose.local.yml up  # Full stack via Docker
 - Forgot password uses SMTP email delivery (recent fix: SSL config)
 - Auth uses in-memory approach (recent refactor across all 3 projects)
 - Phase 2 features: cancel order, GHN shipping, wishlist — see `docs/` folder
+
+## Sapo Integration Rule
+
+- **Any Sapo integration work (design, debugging, or implementation) MUST consult Sapo's real official API docs first** — do not rely solely on assumptions or on `docs/sapo-api-reference.md` in this repo.
+- `docs/sapo-api-reference.md` is **our own inbound API spec** (FashionVista exposes `/api/sapo/v1/*` for Sapo to call INTO us) — it is NOT Sapo's API docs and does not describe what Sapo itself supports.
+- `integration/sapo/client/SapoApiClient.java` calls OUT to Sapo's real hosted Admin API (`/admin/products.json`, Basic Auth) — any new outbound endpoint (e.g. orders) must be verified against Sapo's actual developer documentation for that resource and its webhook topics before designing or building.
