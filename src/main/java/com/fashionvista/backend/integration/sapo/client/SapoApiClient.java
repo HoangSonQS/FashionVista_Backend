@@ -69,4 +69,11 @@ public class SapoApiClient {
                 .retrieve()
                 .body(SapoOrderPushResponse.class);
     }
+
+    public SapoProductPushResponse getProduct(String sapoProductId) {
+        return restClient.get()
+                .uri("/admin/products/{id}.json", sapoProductId)
+                .retrieve()
+                .body(SapoProductPushResponse.class);
+    }
 }

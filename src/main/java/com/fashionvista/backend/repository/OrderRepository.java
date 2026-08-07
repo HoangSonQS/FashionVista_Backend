@@ -50,6 +50,8 @@ public interface OrderRepository extends JpaRepository<Order, Long>, JpaSpecific
 
     List<Order> findBySapoSyncStatusAndStatus(SapoSyncStatus sapoSyncStatus, OrderStatus status);
 
+    List<Order> findByStatusInAndSapoSyncStatusNot(List<OrderStatus> statuses, SapoSyncStatus sapoSyncStatus);
+
     @Query("SELECT o.user.id AS userId, o.user.fullName AS fullName, o.user.email AS email, " +
             "COUNT(o) AS totalOrders, SUM(o.total) AS totalSpent " +
             "FROM Order o " +

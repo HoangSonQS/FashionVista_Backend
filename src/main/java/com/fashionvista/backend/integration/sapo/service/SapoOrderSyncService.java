@@ -127,4 +127,22 @@ public class SapoOrderSyncService {
         order.setSapoSyncStatus(SapoSyncStatus.FAILED);
         order.setSapoSyncError(errorMessage);
     }
+
+    @Transactional
+    public void linkSapoOrder(Long orderId, String sapoOrderId) {
+        Order order = orderRepository.findById(orderId)
+                .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy đơn hàng."));
+
+        orderRepository.findBySapoOrderId(sapoOrderId).ifPresent(existing -> {
+            if (!existing.getId().equals(orderId)) {
+                throw new IllegalArgumentException("Sapo order ID này đã được liên kết với đơn hàng khác.");
+            }
+        });
+
+        order.setSapoOrderId(sapoOrderId);
+        order.setSapoSyncStatus(SapoSyncStatus.SYNCED);
+        order.setSapoSyncError(null);
+        order.setSapoSyncedAt(LocalDateTime.now());
+        orderRepository.save(order);
+    }
 }

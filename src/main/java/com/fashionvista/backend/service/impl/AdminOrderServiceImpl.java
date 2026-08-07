@@ -17,6 +17,7 @@ import com.fashionvista.backend.entity.Payment;
 import com.fashionvista.backend.entity.OrderItem;
 import com.fashionvista.backend.entity.Product;
 import com.fashionvista.backend.entity.ProductVariant;
+import com.fashionvista.backend.integration.sapo.service.SapoInventorySyncService;
 import com.fashionvista.backend.integration.sapo.service.SapoOrderSyncService;
 import com.fashionvista.backend.repository.OrderHistoryRepository;
 import com.fashionvista.backend.repository.OrderItemRepository;
@@ -65,6 +66,7 @@ public class AdminOrderServiceImpl implements AdminOrderService {
     private final EmailService emailService;
     private final LoyaltyService loyaltyService;
     private final SapoOrderSyncService sapoOrderSyncService;
+    private final SapoInventorySyncService sapoInventorySyncService;
 
     @Override
     @Transactional(readOnly = true)
@@ -742,6 +744,7 @@ public class AdminOrderServiceImpl implements AdminOrderService {
             if (affected == 0) {
                 throw new IllegalArgumentException("Sản phẩm không đủ tồn kho.");
             }
+            sapoInventorySyncService.pushStock(finalVariant.getId());
         }
 
         if (existingItem != null) {
