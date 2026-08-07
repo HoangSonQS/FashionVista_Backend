@@ -12,6 +12,7 @@ import com.fashionvista.backend.entity.Payment;
 import com.fashionvista.backend.entity.PaymentMethod;
 import com.fashionvista.backend.entity.PaymentStatus;
 import com.fashionvista.backend.entity.ProductVariant;
+import com.fashionvista.backend.integration.sapo.service.SapoInventorySyncService;
 import com.fashionvista.backend.repository.CartRepository;
 import com.fashionvista.backend.repository.OrderRepository;
 import com.fashionvista.backend.repository.PaymentRepository;
@@ -50,6 +51,7 @@ public class OrderServiceImpl implements OrderService {
     private final EmailService emailService;
     private final VoucherService voucherService;
     private final VnPayService vnPayService;
+    private final SapoInventorySyncService sapoInventorySyncService;
 
     @Override
     @Transactional
@@ -289,6 +291,8 @@ public class OrderServiceImpl implements OrderService {
                     // Có thể xử lý sau bằng cách thông báo admin
                     log.warn("Không thể decrease stock cho variant {} trong order {}",
                             orderItem.getVariant().getId(), order.getOrderNumber());
+                } else {
+                    sapoInventorySyncService.pushStock(orderItem.getVariant().getId());
                 }
             }
         });
@@ -325,6 +329,7 @@ public class OrderServiceImpl implements OrderService {
         if (affected == 0) {
             throw new IllegalArgumentException("Sản phẩm " + item.getVariant().getSku() + " không đủ tồn kho.");
         }
+        sapoInventorySyncService.pushStock(item.getVariant().getId());
     }
 
     private void restockItems(Order order) {
@@ -334,6 +339,7 @@ public class OrderServiceImpl implements OrderService {
             variant.setStock(variant.getStock() + orderItem.getQuantity());
             try {
                 productVariantRepository.save(variant);
+                sapoInventorySyncService.pushStock(variant.getId());
             } catch (OptimisticLockingFailureException ex) {
                 throw new IllegalStateException("Sản phẩm vừa được cập nhật. Vui lòng thử lại.", ex);
             }

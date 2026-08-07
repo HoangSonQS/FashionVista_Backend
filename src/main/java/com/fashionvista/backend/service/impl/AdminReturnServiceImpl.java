@@ -10,6 +10,7 @@ import com.fashionvista.backend.entity.PaymentStatus;
 import com.fashionvista.backend.entity.ReturnRequest;
 import com.fashionvista.backend.entity.ReturnStatus;
 import com.fashionvista.backend.repository.OrderRepository;
+import com.fashionvista.backend.integration.sapo.service.SapoInventorySyncService;
 import com.fashionvista.backend.repository.ProductVariantRepository;
 import com.fashionvista.backend.repository.ReturnRequestRepository;
 import com.fashionvista.backend.service.AdminReturnService;
@@ -28,6 +29,7 @@ public class AdminReturnServiceImpl implements AdminReturnService {
     private final ReturnRequestRepository returnRequestRepository;
     private final OrderRepository orderRepository;
     private final ProductVariantRepository productVariantRepository;
+    private final SapoInventorySyncService sapoInventorySyncService;
 
     @Override
     @Transactional(readOnly = true)
@@ -181,6 +183,7 @@ public class AdminReturnServiceImpl implements AdminReturnService {
 
             variant.setStock(variant.getStock() + delta);
             productVariantRepository.save(variant);
+            sapoInventorySyncService.pushStock(variant.getId());
 
             // Update state
             item.setRestockedQuantity(targetQty);
