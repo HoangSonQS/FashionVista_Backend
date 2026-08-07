@@ -58,4 +58,33 @@ class OrderServiceImplTest {
 
         verify(sapoInventorySyncService, never()).pushStock(eq(10L));
     }
+
+    @Test
+    void decreaseStock_NonZeroAffected_PushesStockToSapo() {
+        ProductVariant variant = ProductVariant.builder().id(12L).sku("SKU-002").build();
+        com.fashionvista.backend.entity.CartItem cartItem = com.fashionvista.backend.entity.CartItem.builder()
+                .variant(variant)
+                .quantity(4)
+                .build();
+
+        when(productVariantRepository.decreaseStockIfEnough(12L, 4)).thenReturn(1);
+
+        org.junit.jupiter.api.Assertions.assertDoesNotThrow(
+                () -> org.springframework.test.util.ReflectionTestUtils.invokeMethod(orderService, "decreaseStock", cartItem));
+
+        verify(sapoInventorySyncService, times(1)).pushStock(12L);
+    }
+
+    @Test
+    void decreaseStockForOrder_AffectedNonZero_PushesStockToSapo() {
+        ProductVariant variant = ProductVariant.builder().id(11L).build();
+        OrderItem orderItem = OrderItem.builder().variant(variant).quantity(2).build();
+        Order order = Order.builder().orderNumber("ORD-0002").items(List.of(orderItem)).build();
+
+        when(productVariantRepository.decreaseStockIfEnough(11L, 2)).thenReturn(1);
+
+        org.springframework.test.util.ReflectionTestUtils.invokeMethod(orderService, "decreaseStockForOrder", order);
+
+        verify(sapoInventorySyncService, times(1)).pushStock(11L);
+    }
 }
