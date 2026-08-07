@@ -46,5 +46,7 @@ public interface ProductVariantRepository extends JpaRepository<ProductVariant, 
      */
     @Query("SELECT COALESCE(SUM(v.stock), 0) FROM ProductVariant v WHERE v.product.id = :productId")
     Integer sumStockByProductId(@Param("productId") Long productId);
+
+    java.util.List<ProductVariant> findBySapoVariantIdIsNotNull();
 }
 
