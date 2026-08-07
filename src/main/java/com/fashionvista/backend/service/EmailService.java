@@ -54,4 +54,11 @@ public interface EmailService {
      * @param cart  Giỏ hàng
      */
     void sendAbandonedCartEmail(String email, com.fashionvista.backend.entity.Cart cart);
+
+    /**
+     * Gửi email cảnh báo lệch đồng bộ Sapo cho admin
+     *
+     * @param newlyDetected Danh sách discrepancy mới phát hiện trong chu kỳ kiểm tra này
+     */
+    void sendSyncDiscrepancyAlert(java.util.List<com.fashionvista.backend.entity.SyncDiscrepancy> newlyDetected);
 }
