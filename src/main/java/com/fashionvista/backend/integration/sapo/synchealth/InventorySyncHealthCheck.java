@@ -14,6 +14,7 @@ import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.annotation.Transactional;
 
 @Component
 @RequiredArgsConstructor
@@ -30,6 +31,7 @@ public class InventorySyncHealthCheck implements SapoSyncHealthCheck {
     }
 
     @Override
+    @Transactional(readOnly = true)
     public List<DiscrepancyCandidate> checkAll() {
         List<DiscrepancyCandidate> candidates = new ArrayList<>();
         List<ProductVariant> variants = productVariantRepository.findBySapoVariantIdIsNotNull();
