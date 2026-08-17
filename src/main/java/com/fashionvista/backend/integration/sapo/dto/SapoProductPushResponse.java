@@ -1,6 +1,7 @@
 package com.fashionvista.backend.integration.sapo.dto;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import java.util.List;
 import lombok.Data;
 import lombok.NoArgsConstructor;
@@ -26,5 +27,8 @@ public class SapoProductPushResponse {
     public static class Variant {
         private String id;
         private String sku;
+
+        @JsonProperty("inventory_quantity")
+        private Integer inventoryQuantity;
     }
 }

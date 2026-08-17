@@ -2,6 +2,7 @@ package com.fashionvista.backend.service.impl;
 
 import com.fashionvista.backend.dto.*;
 import com.fashionvista.backend.entity.*;
+import com.fashionvista.backend.integration.sapo.service.SapoInventorySyncService;
 import com.fashionvista.backend.integration.sapo.service.SapoOrderSyncService;
 import com.fashionvista.backend.repository.*;
 import com.fashionvista.backend.service.EmailService;
@@ -57,6 +58,8 @@ class AdminOrderServiceImplTest {
     private LoyaltyService loyaltyService;
     @Mock
     private SapoOrderSyncService sapoOrderSyncService;
+    @Mock
+    private SapoInventorySyncService sapoInventorySyncService;
 
     @InjectMocks
     private AdminOrderServiceImpl adminOrderService;
@@ -261,5 +264,43 @@ class AdminOrderServiceImplTest {
         adminOrderService.bulkUpdateStatus(request);
 
         verify(sapoOrderSyncService, never()).pushOrder(any());
+    }
+
+    @Test
+    void addOrderItem_ValidRequestAffectsStock_PushesStockToSapo() {
+        User admin = User.builder().id(2L).email("admin@example.com").build();
+        when(userContextService.getCurrentUser()).thenReturn(admin);
+
+        order.setStatus(OrderStatus.PENDING);
+        order.setPaymentMethod(PaymentMethod.COD);
+
+        Product product = Product.builder()
+                .id(5L)
+                .name("Áo thun")
+                .price(BigDecimal.valueOf(200000))
+                .build();
+        ProductVariant variant = ProductVariant.builder()
+                .id(30L)
+                .product(product)
+                .price(BigDecimal.valueOf(200000))
+                .stock(10)
+                .build();
+
+        when(orderRepository.findById(1L)).thenReturn(Optional.of(order));
+        when(productRepository.findById(5L)).thenReturn(Optional.of(product));
+        when(productVariantRepository.findById(30L)).thenReturn(Optional.of(variant));
+        when(productVariantRepository.decreaseStockIfEnough(30L, 2)).thenReturn(1);
+        when(orderItemRepository.findByOrder(order)).thenReturn(new ArrayList<>());
+        when(orderRepository.save(any(Order.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(orderHistoryRepository.findByOrderIdOrderByCreatedAtAsc(1L)).thenReturn(new ArrayList<>());
+
+        AddOrderItemRequest request = new AddOrderItemRequest();
+        request.setProductId(5L);
+        request.setVariantId(30L);
+        request.setQuantity(2);
+
+        adminOrderService.addOrderItem(1L, request);
+
+        verify(sapoInventorySyncService).pushStock(30L);
     }
 }

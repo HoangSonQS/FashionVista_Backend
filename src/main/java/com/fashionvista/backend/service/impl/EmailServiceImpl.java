@@ -59,6 +59,12 @@ public class EmailServiceImpl implements EmailService {
     @Value("${app.name:FashionVista}")
     private String appName;
 
+    @Value("${admin.alert.email:}")
+    private String adminAlertEmail;
+
+    @Value("${app.admin.url:http://localhost:5174}")
+    private String adminUrl;
+
     @Override
     public void sendVerificationEmail(User user, String verificationToken) {
         if (!isSmtpConfigured()) {
@@ -379,5 +385,41 @@ public class EmailServiceImpl implements EmailService {
         context.setVariable("cartLink", frontendUrl + "/cart");
         context.setVariable("appName", appName);
         return emailTemplateEngine.process("abandoned-cart", context);
+    }
+
+    @Override
+    public void sendSyncDiscrepancyAlert(java.util.List<com.fashionvista.backend.entity.SyncDiscrepancy> newlyDetected) {
+        if (!isSmtpConfigured() || !StringUtils.hasText(adminAlertEmail)) {
+            log.warn("Bỏ qua gửi email cảnh báo lệch đồng bộ Sapo vì SMTP hoặc admin.alert.email chưa cấu hình.");
+            return;
+        }
+        try {
+            String htmlContent = buildSyncDiscrepancyAlertHtml(newlyDetected);
+
+            MimeMessage message = mailSender.createMimeMessage();
+            MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
+
+            try {
+                helper.setFrom(fromEmail, fromName);
+            } catch (UnsupportedEncodingException ex) {
+                helper.setFrom(fromEmail);
+            }
+            helper.setTo(adminAlertEmail);
+            helper.setSubject("[" + appName + "] Phát hiện " + newlyDetected.size() + " lệch đồng bộ Sapo");
+            helper.setText(htmlContent, true);
+
+            mailSender.send(message);
+            log.info("Đã gửi email cảnh báo lệch đồng bộ Sapo đến: {}", adminAlertEmail);
+        } catch (Exception e) {
+            log.error("Lỗi khi gửi email cảnh báo lệch đồng bộ Sapo đến: {}", adminAlertEmail, e);
+        }
+    }
+
+    private String buildSyncDiscrepancyAlertHtml(java.util.List<com.fashionvista.backend.entity.SyncDiscrepancy> discrepancies) {
+        Context context = new Context(Locale.forLanguageTag("vi-VN"));
+        context.setVariable("discrepancies", discrepancies);
+        context.setVariable("adminLink", adminUrl + "/sync-health");
+        context.setVariable("appName", appName);
+        return emailTemplateEngine.process("sync-discrepancy-alert", context);
     }
 }

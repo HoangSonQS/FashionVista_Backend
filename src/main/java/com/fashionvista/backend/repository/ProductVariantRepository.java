@@ -28,7 +28,7 @@ public interface ProductVariantRepository extends JpaRepository<ProductVariant, 
      * @return số dòng được update (0 = không đủ tồn kho, 1 = thành công)
      */
     @Transactional
-    @Modifying
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
     @Query("""
         UPDATE ProductVariant v
            SET v.stock = v.stock - :quantity
@@ -46,5 +46,7 @@ public interface ProductVariantRepository extends JpaRepository<ProductVariant, 
      */
     @Query("SELECT COALESCE(SUM(v.stock), 0) FROM ProductVariant v WHERE v.product.id = :productId")
     Integer sumStockByProductId(@Param("productId") Long productId);
+
+    java.util.List<ProductVariant> findBySapoVariantIdIsNotNull();
 }
 
