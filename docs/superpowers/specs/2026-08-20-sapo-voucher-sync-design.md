@@ -101,6 +101,22 @@ integration/sapo/client/
 injection point in `SyncHealthScheduler` — no scheduler changes needed, per the
 pluggable design already in place.
 
+**Authentication & config — no new credentials needed.** The new
+`createPriceRule`/`updatePriceRule`/`getPriceRule`/`createDiscountCode`/
+`updateDiscountCode` methods are added to the existing `SapoApiClient`, so they
+inherit its already-configured `RestClient` as-is:
+
+- `Authorization: Basic base64(SAPO_OUTBOUND_API_KEY:SAPO_OUTBOUND_API_SECRET)`,
+  bound via `SapoOutboundProperties` (`sapo.outbound.api-key` /
+  `sapo.outbound.api-secret`) — the same credentials Order/Product push already
+  use, supplied by Sapo when the store's outbound API access was provisioned.
+- Base URL `https://${SAPO_STORE_DOMAIN}` (`sapo.outbound.store-domain`).
+- `SAPO_WEBHOOK_SECRET` (`sapo.outbound.webhook-secret`) is unrelated to this
+  spec — it verifies inbound Sapo webhook signatures and is not touched by this
+  outbound-push feature.
+
+This sub-project introduces zero new environment variables.
+
 ## Data Model
 
 `Voucher` gains:
