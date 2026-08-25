@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -30,6 +31,8 @@ import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.domain.Specification;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 @ExtendWith(MockitoExtension.class)
 class AdminVoucherServiceImplTest {
@@ -149,5 +152,59 @@ class AdminVoucherServiceImplTest {
 
         assertThrows(EntityNotFoundException.class, () -> adminVoucherService.deleteVoucher(99L));
         verify(sapoVoucherSyncService, never()).deactivateVoucher(any());
+    }
+
+    @Test
+    void createVoucher_WithinActiveTransaction_DefersPushUntilAfterCommit() {
+        VoucherCreateRequest request = new VoucherCreateRequest(
+                "SALE20", VoucherType.PERCENT, BigDecimal.valueOf(20), false, null, null, true, null, null);
+        when(voucherRepository.findByCodeIgnoreCase("SALE20")).thenReturn(Optional.empty());
+        when(voucherRepository.save(any(Voucher.class))).thenAnswer(invocation -> {
+            Voucher saved = invocation.getArgument(0);
+            saved.setId(2L);
+            return saved;
+        });
+
+        TransactionSynchronizationManager.initSynchronization();
+        try {
+            adminVoucherService.createVoucher(request);
+
+            // push must NOT have fired yet — it's deferred
+            verify(sapoVoucherSyncService, never()).pushVoucher(anyLong());
+
+            // simulate the transaction committing
+            for (TransactionSynchronization synchronization : TransactionSynchronizationManager.getSynchronizations()) {
+                synchronization.afterCommit();
+            }
+
+            // now it should have fired
+            verify(sapoVoucherSyncService).pushVoucher(2L);
+        } finally {
+            TransactionSynchronizationManager.clearSynchronization();
+        }
+    }
+
+    @Test
+    void deleteVoucher_WithinActiveTransaction_DefersDeactivateUntilAfterCommit() {
+        voucher.setSapoPriceRuleId(501L);
+        when(voucherRepository.findById(1L)).thenReturn(Optional.of(voucher));
+
+        TransactionSynchronizationManager.initSynchronization();
+        try {
+            adminVoucherService.deleteVoucher(1L);
+
+            // deactivate must NOT have fired yet — it's deferred
+            verify(sapoVoucherSyncService, never()).deactivateVoucher(any());
+
+            // simulate the transaction committing
+            for (TransactionSynchronization synchronization : TransactionSynchronizationManager.getSynchronizations()) {
+                synchronization.afterCommit();
+            }
+
+            // now it should have fired
+            verify(sapoVoucherSyncService).deactivateVoucher(501L);
+        } finally {
+            TransactionSynchronizationManager.clearSynchronization();
+        }
     }
 }
