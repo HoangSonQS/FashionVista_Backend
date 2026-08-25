@@ -5,10 +5,13 @@ import com.fashionvista.backend.dto.VoucherCreateRequest;
 import com.fashionvista.backend.dto.VoucherUpdateRequest;
 import com.fashionvista.backend.entity.Voucher;
 import com.fashionvista.backend.entity.VoucherType;
+import com.fashionvista.backend.integration.sapo.service.SapoVoucherSyncService;
 import com.fashionvista.backend.repository.VoucherRepository;
 import com.fashionvista.backend.service.AdminVoucherService;
 import jakarta.persistence.EntityNotFoundException;
 import java.math.BigDecimal;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -21,6 +24,7 @@ import org.springframework.transaction.annotation.Transactional;
 public class AdminVoucherServiceImpl implements AdminVoucherService {
 
     private final VoucherRepository voucherRepository;
+    private final SapoVoucherSyncService sapoVoucherSyncService;
 
     @Override
     @Transactional(readOnly = true)
@@ -81,6 +85,7 @@ public class AdminVoucherServiceImpl implements AdminVoucherService {
             .build();
 
         voucher = voucherRepository.save(voucher);
+        schedulePushVoucherAfterCommit(voucher.getId());
         return toAdminVoucherResponse(voucher);
     }
 
@@ -137,6 +142,7 @@ public class AdminVoucherServiceImpl implements AdminVoucherService {
         }
 
         voucher = voucherRepository.save(voucher);
+        schedulePushVoucherAfterCommit(voucher.getId());
         return toAdminVoucherResponse(voucher);
     }
 
@@ -145,7 +151,41 @@ public class AdminVoucherServiceImpl implements AdminVoucherService {
     public void deleteVoucher(Long id) {
         Voucher voucher = voucherRepository.findById(id)
             .orElseThrow(() -> new EntityNotFoundException("Không tìm thấy voucher với ID: " + id));
+        Long sapoPriceRuleId = voucher.getSapoPriceRuleId();
         voucherRepository.delete(voucher);
+        if (sapoPriceRuleId != null) {
+            scheduleDeactivateVoucherAfterCommit(sapoPriceRuleId);
+        }
+    }
+
+    /**
+     * pushVoucher() là @Async + @Transactional: gọi trực tiếp bên trong một transaction đang mở sẽ khiến
+     * task async đọc dữ liệu chưa commit. Đăng ký chạy sau khi transaction hiện tại commit để tránh race condition.
+     */
+    private void schedulePushVoucherAfterCommit(Long voucherId) {
+        if (TransactionSynchronizationManager.isSynchronizationActive()) {
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override
+                public void afterCommit() {
+                    sapoVoucherSyncService.pushVoucher(voucherId);
+                }
+            });
+        } else {
+            sapoVoucherSyncService.pushVoucher(voucherId);
+        }
+    }
+
+    private void scheduleDeactivateVoucherAfterCommit(Long sapoPriceRuleId) {
+        if (TransactionSynchronizationManager.isSynchronizationActive()) {
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override
+                public void afterCommit() {
+                    sapoVoucherSyncService.deactivateVoucher(sapoPriceRuleId);
+                }
+            });
+        } else {
+            sapoVoucherSyncService.deactivateVoucher(sapoPriceRuleId);
+        }
     }
 
     private AdminVoucherResponse toAdminVoucherResponse(Voucher voucher) {
