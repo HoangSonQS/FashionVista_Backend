@@ -129,6 +129,72 @@ class VoucherSyncHealthCheckTest {
     }
 
     @Test
+    void checkAll_SyncedEndsOnWithSecondsVsLocal_NoMismatch() {
+        Voucher voucher = Voucher.builder()
+                .id(1L).code("SUMMER10").type(VoucherType.PERCENT).value(BigDecimal.TEN)
+                .sapoSyncStatus(SapoSyncStatus.SYNCED).sapoPriceRuleId(501L)
+                .expiresAt(LocalDateTime.parse("2026-09-01T00:00")).build();
+        when(voucherRepository.findByActiveTrueAndSapoSyncStatusNot(SapoSyncStatus.SYNCED)).thenReturn(List.of());
+        when(voucherRepository.findByActiveTrueAndSapoSyncStatus(SapoSyncStatus.SYNCED)).thenReturn(List.of(voucher));
+        when(sapoApiClient.getPriceRule(501L)).thenReturn(responseWithValue(501L, "10", "2026-09-01T00:00:00"));
+
+        List<DiscrepancyCandidate> candidates = voucherSyncHealthCheck.checkAll();
+
+        assertThat(candidates).isEmpty();
+    }
+
+    @Test
+    void checkAll_SyncedEndsOnWithUtcOffset_NoMismatch() {
+        Voucher voucher = Voucher.builder()
+                .id(1L).code("SUMMER10").type(VoucherType.PERCENT).value(BigDecimal.TEN)
+                .sapoSyncStatus(SapoSyncStatus.SYNCED).sapoPriceRuleId(501L)
+                .expiresAt(LocalDateTime.parse("2026-09-01T00:00")).build();
+        when(voucherRepository.findByActiveTrueAndSapoSyncStatusNot(SapoSyncStatus.SYNCED)).thenReturn(List.of());
+        when(voucherRepository.findByActiveTrueAndSapoSyncStatus(SapoSyncStatus.SYNCED)).thenReturn(List.of(voucher));
+        when(sapoApiClient.getPriceRule(501L)).thenReturn(responseWithValue(501L, "10", "2026-09-01T00:00:00+07:00"));
+
+        List<DiscrepancyCandidate> candidates = voucherSyncHealthCheck.checkAll();
+
+        assertThat(candidates).isEmpty();
+    }
+
+    @Test
+    void checkAll_SyncedEndsOnUnparseable_ReturnsMismatchCandidate() {
+        Voucher voucher = Voucher.builder()
+                .id(1L).code("SUMMER10").type(VoucherType.PERCENT).value(BigDecimal.TEN)
+                .sapoSyncStatus(SapoSyncStatus.SYNCED).sapoPriceRuleId(501L)
+                .expiresAt(LocalDateTime.parse("2026-09-01T00:00")).build();
+        when(voucherRepository.findByActiveTrueAndSapoSyncStatusNot(SapoSyncStatus.SYNCED)).thenReturn(List.of());
+        when(voucherRepository.findByActiveTrueAndSapoSyncStatus(SapoSyncStatus.SYNCED)).thenReturn(List.of(voucher));
+        when(sapoApiClient.getPriceRule(501L)).thenReturn(responseWithValue(501L, "10", "not-a-date"));
+
+        List<DiscrepancyCandidate> candidates = voucherSyncHealthCheck.checkAll();
+
+        assertThat(candidates).hasSize(1);
+        assertThat(candidates.get(0).discrepancyType()).isEqualTo(DiscrepancyType.VALUE_MISMATCH);
+    }
+
+    @Test
+    void checkAll_MultipleSyncedWithOneApiFailure_IsolatesException() {
+        Voucher voucher1 = Voucher.builder()
+                .id(1L).code("SUMMER10").type(VoucherType.PERCENT).value(BigDecimal.TEN)
+                .sapoSyncStatus(SapoSyncStatus.SYNCED).sapoPriceRuleId(501L)
+                .expiresAt(LocalDateTime.parse("2026-09-01T00:00")).build();
+        Voucher voucher2 = Voucher.builder()
+                .id(2L).code("FALL20").type(VoucherType.PERCENT).value(BigDecimal.valueOf(20))
+                .sapoSyncStatus(SapoSyncStatus.SYNCED).sapoPriceRuleId(502L)
+                .expiresAt(LocalDateTime.parse("2026-10-01T00:00")).build();
+        when(voucherRepository.findByActiveTrueAndSapoSyncStatusNot(SapoSyncStatus.SYNCED)).thenReturn(List.of());
+        when(voucherRepository.findByActiveTrueAndSapoSyncStatus(SapoSyncStatus.SYNCED)).thenReturn(List.of(voucher1, voucher2));
+        when(sapoApiClient.getPriceRule(501L)).thenThrow(new RuntimeException("Sapo down"));
+        when(sapoApiClient.getPriceRule(502L)).thenReturn(responseWithValue(502L, "20", "2026-10-01T00:00"));
+
+        List<DiscrepancyCandidate> candidates = voucherSyncHealthCheck.checkAll();
+
+        assertThat(candidates).isEmpty();
+    }
+
+    @Test
     void domain_ReturnsVoucher() {
         assertThat(voucherSyncHealthCheck.domain()).isEqualTo(com.fashionvista.backend.entity.SyncDomain.VOUCHER);
     }

@@ -7,7 +7,10 @@ import com.fashionvista.backend.entity.Voucher;
 import com.fashionvista.backend.integration.sapo.client.SapoApiClient;
 import com.fashionvista.backend.integration.sapo.dto.SapoPriceRuleResponse;
 import com.fashionvista.backend.repository.VoucherRepository;
+import java.time.DateTimeException;
 import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
+import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
@@ -68,10 +71,9 @@ public class VoucherSyncHealthCheck implements SapoSyncHealthCheck {
                 String remoteValue = response.getPriceRule().getValue();
                 String remoteEndsOn = response.getPriceRule().getEndsOn();
                 String localValue = voucher.getValue() != null ? voucher.getValue().toPlainString() : null;
-                String localEndsOn = voucher.getExpiresAt() != null ? voucher.getExpiresAt().toString() : null;
 
                 boolean valueMismatch = localValue != null && !localValue.equals(remoteValue);
-                boolean endsOnMismatch = localEndsOn != null && !localEndsOn.equals(remoteEndsOn);
+                boolean endsOnMismatch = checkEndsOnMismatch(voucher.getExpiresAt(), remoteEndsOn);
 
                 if (valueMismatch || endsOnMismatch) {
                     candidates.add(new DiscrepancyCandidate(
@@ -79,12 +81,35 @@ public class VoucherSyncHealthCheck implements SapoSyncHealthCheck {
                             voucher.getCode(),
                             DiscrepancyType.VALUE_MISMATCH,
                             "local value=" + localValue + " vs sapo value=" + remoteValue
-                                    + ", local expiresAt=" + localEndsOn + " vs sapo ends_on=" + remoteEndsOn));
+                                    + ", local expiresAt=" + (voucher.getExpiresAt() != null ? voucher.getExpiresAt().toString() : null)
+                                    + " vs sapo ends_on=" + remoteEndsOn));
                 }
             } catch (RuntimeException ex) {
                 log.error("Sapo voucher sync-health check failed for voucher id={}: {}", voucher.getId(), ex.getMessage(), ex);
             }
         }
         return candidates;
+    }
+
+    private boolean checkEndsOnMismatch(LocalDateTime localEndsOn, String remoteEndsOn) {
+        if (localEndsOn == null || remoteEndsOn == null) {
+            return localEndsOn != null || remoteEndsOn != null;
+        }
+
+        try {
+            LocalDateTime remoteDateTime;
+            try {
+                remoteDateTime = OffsetDateTime.parse(remoteEndsOn).toLocalDateTime();
+            } catch (DateTimeException ex) {
+                remoteDateTime = LocalDateTime.parse(remoteEndsOn);
+            }
+
+            LocalDateTime localTruncated = localEndsOn.truncatedTo(ChronoUnit.MINUTES);
+            LocalDateTime remoteTruncated = remoteDateTime.truncatedTo(ChronoUnit.MINUTES);
+            return !localTruncated.equals(remoteTruncated);
+        } catch (DateTimeException ex) {
+            log.warn("Could not parse remote ends_on value '{}' for mismatch check: {}", remoteEndsOn, ex.getMessage());
+            return true;
+        }
     }
 }
