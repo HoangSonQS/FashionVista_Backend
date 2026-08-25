@@ -10,6 +10,7 @@ import lombok.NoArgsConstructor;
 @JsonIgnoreProperties(ignoreUnknown = true)
 public class SapoDiscountCodeResponse {
 
+    @JsonProperty("discount_code")
     private DiscountCode discountCode;
 
     @Data

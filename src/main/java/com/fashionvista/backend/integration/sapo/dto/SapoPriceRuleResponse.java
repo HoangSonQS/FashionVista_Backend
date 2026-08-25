@@ -10,6 +10,7 @@ import lombok.NoArgsConstructor;
 @JsonIgnoreProperties(ignoreUnknown = true)
 public class SapoPriceRuleResponse {
 
+    @JsonProperty("price_rule")
     private PriceRule priceRule;
 
     @Data

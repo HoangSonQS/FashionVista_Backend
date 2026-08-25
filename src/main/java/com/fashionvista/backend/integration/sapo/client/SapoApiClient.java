@@ -1,10 +1,14 @@
 package com.fashionvista.backend.integration.sapo.client;
 
 import com.fashionvista.backend.integration.sapo.config.SapoOutboundProperties;
+import com.fashionvista.backend.integration.sapo.dto.SapoDiscountCodeRequest;
+import com.fashionvista.backend.integration.sapo.dto.SapoDiscountCodeResponse;
 import com.fashionvista.backend.integration.sapo.dto.SapoOrderPushRequest;
 import com.fashionvista.backend.integration.sapo.dto.SapoOrderPushResponse;
 import com.fashionvista.backend.integration.sapo.dto.SapoProductPushRequest;
 import com.fashionvista.backend.integration.sapo.dto.SapoProductPushResponse;
+import com.fashionvista.backend.integration.sapo.dto.SapoPriceRuleRequest;
+import com.fashionvista.backend.integration.sapo.dto.SapoPriceRuleResponse;
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -75,5 +79,44 @@ public class SapoApiClient {
                 .uri("/admin/products/{id}.json", sapoProductId)
                 .retrieve()
                 .body(SapoProductPushResponse.class);
+    }
+
+    public SapoPriceRuleResponse createPriceRule(SapoPriceRuleRequest request) {
+        return restClient.post()
+                .uri("/admin/price_rules.json")
+                .body(request)
+                .retrieve()
+                .body(SapoPriceRuleResponse.class);
+    }
+
+    public SapoPriceRuleResponse updatePriceRule(Long priceRuleId, SapoPriceRuleRequest request) {
+        return restClient.put()
+                .uri("/admin/price_rules/{id}.json", priceRuleId)
+                .body(request)
+                .retrieve()
+                .body(SapoPriceRuleResponse.class);
+    }
+
+    public SapoPriceRuleResponse getPriceRule(Long priceRuleId) {
+        return restClient.get()
+                .uri("/admin/price_rules/{id}.json", priceRuleId)
+                .retrieve()
+                .body(SapoPriceRuleResponse.class);
+    }
+
+    public SapoDiscountCodeResponse createDiscountCode(Long priceRuleId, SapoDiscountCodeRequest request) {
+        return restClient.post()
+                .uri("/admin/price_rules/{priceRuleId}/discount_codes.json", priceRuleId)
+                .body(request)
+                .retrieve()
+                .body(SapoDiscountCodeResponse.class);
+    }
+
+    public SapoDiscountCodeResponse updateDiscountCode(Long priceRuleId, Long discountCodeId, SapoDiscountCodeRequest request) {
+        return restClient.put()
+                .uri("/admin/price_rules/{priceRuleId}/discount_codes/{discountCodeId}.json", priceRuleId, discountCodeId)
+                .body(request)
+                .retrieve()
+                .body(SapoDiscountCodeResponse.class);
     }
 }
