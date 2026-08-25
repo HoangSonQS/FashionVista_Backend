@@ -31,6 +31,17 @@ public class AsyncConfig {
         executor.initialize();
         return executor;
     }
+
+    @Bean(name = "sapoCustomerTaskExecutor")
+    public Executor sapoCustomerTaskExecutor() {
+        ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
+        executor.setCorePoolSize(2);
+        executor.setMaxPoolSize(5);
+        executor.setQueueCapacity(50);
+        executor.setThreadNamePrefix("sapo-customer-");
+        executor.initialize();
+        return executor;
+    }
 }
 
 
