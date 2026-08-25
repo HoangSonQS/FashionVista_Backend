@@ -97,6 +97,14 @@ public class User {
     @Column(name = "last_login_at")
     private LocalDateTime lastLoginAt;
 
+    @Column(name = "sapo_customer_id")
+    private Long sapoCustomerId;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "sapo_sync_status", nullable = false, length = 32)
+    @Builder.Default
+    private SapoSyncStatus sapoSyncStatus = SapoSyncStatus.PENDING;
+
     // Relationships
     @OneToMany(mappedBy = "user", fetch = FetchType.LAZY, cascade = CascadeType.ALL, orphanRemoval = true)
     @Builder.Default
