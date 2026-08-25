@@ -3,6 +3,8 @@ package com.fashionvista.backend.integration.sapo.client;
 import com.fashionvista.backend.integration.sapo.config.SapoOutboundProperties;
 import com.fashionvista.backend.integration.sapo.dto.SapoOrderPushRequest;
 import com.fashionvista.backend.integration.sapo.dto.SapoOrderPushResponse;
+import com.fashionvista.backend.integration.sapo.dto.SapoCustomerRequest;
+import com.fashionvista.backend.integration.sapo.dto.SapoCustomerResponse;
 import com.fashionvista.backend.integration.sapo.dto.SapoProductPushRequest;
 import com.fashionvista.backend.integration.sapo.dto.SapoProductPushResponse;
 import java.nio.charset.StandardCharsets;
@@ -75,5 +77,21 @@ public class SapoApiClient {
                 .uri("/admin/products/{id}.json", sapoProductId)
                 .retrieve()
                 .body(SapoProductPushResponse.class);
+    }
+
+    public SapoCustomerResponse createCustomer(SapoCustomerRequest request) {
+        return restClient.post()
+                .uri("/admin/customers.json")
+                .body(request)
+                .retrieve()
+                .body(SapoCustomerResponse.class);
+    }
+
+    public SapoCustomerResponse updateCustomer(Long sapoCustomerId, SapoCustomerRequest request) {
+        return restClient.put()
+                .uri("/admin/customers/{id}.json", sapoCustomerId)
+                .body(request)
+                .retrieve()
+                .body(SapoCustomerResponse.class);
     }
 }
