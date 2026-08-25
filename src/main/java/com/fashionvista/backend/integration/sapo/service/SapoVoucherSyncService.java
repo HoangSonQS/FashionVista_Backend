@@ -7,6 +7,7 @@ import com.fashionvista.backend.integration.sapo.dto.SapoDiscountCodeRequest;
 import com.fashionvista.backend.integration.sapo.dto.SapoDiscountCodeResponse;
 import com.fashionvista.backend.integration.sapo.dto.SapoPriceRuleRequest;
 import com.fashionvista.backend.integration.sapo.dto.SapoPriceRuleResponse;
+import com.fashionvista.backend.integration.sapo.util.SapoDateTimeParser;
 import com.fashionvista.backend.repository.VoucherRepository;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -121,7 +122,7 @@ public class SapoVoucherSyncService {
                 voucher.setValue(new BigDecimal(remote.getValue()));
             }
             if (remote.getEndsOn() != null) {
-                voucher.setExpiresAt(LocalDateTime.parse(remote.getEndsOn()));
+                voucher.setExpiresAt(SapoDateTimeParser.parseTolerant(remote.getEndsOn()));
             }
             voucherRepository.save(voucher);
             return true;

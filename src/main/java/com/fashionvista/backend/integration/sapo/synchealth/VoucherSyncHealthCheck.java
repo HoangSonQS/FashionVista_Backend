@@ -6,10 +6,11 @@ import com.fashionvista.backend.entity.SyncDomain;
 import com.fashionvista.backend.entity.Voucher;
 import com.fashionvista.backend.integration.sapo.client.SapoApiClient;
 import com.fashionvista.backend.integration.sapo.dto.SapoPriceRuleResponse;
+import com.fashionvista.backend.integration.sapo.util.SapoDateTimeParser;
 import com.fashionvista.backend.repository.VoucherRepository;
+import java.math.BigDecimal;
 import java.time.DateTimeException;
 import java.time.LocalDateTime;
-import java.time.OffsetDateTime;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.List;
@@ -17,6 +18,7 @@ import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.annotation.Transactional;
 
 @Component
 @RequiredArgsConstructor
@@ -34,6 +36,7 @@ public class VoucherSyncHealthCheck implements SapoSyncHealthCheck {
     }
 
     @Override
+    @Transactional(readOnly = true)
     public List<DiscrepancyCandidate> checkAll() {
         List<DiscrepancyCandidate> candidates = new ArrayList<>();
         candidates.addAll(checkUnsyncedAndFailed());
@@ -70,9 +73,8 @@ public class VoucherSyncHealthCheck implements SapoSyncHealthCheck {
                 }
                 String remoteValue = response.getPriceRule().getValue();
                 String remoteEndsOn = response.getPriceRule().getEndsOn();
-                String localValue = voucher.getValue() != null ? voucher.getValue().toPlainString() : null;
 
-                boolean valueMismatch = localValue != null && !localValue.equals(remoteValue);
+                boolean valueMismatch = checkValueMismatch(voucher.getValue(), remoteValue);
                 boolean endsOnMismatch = checkEndsOnMismatch(voucher.getExpiresAt(), remoteEndsOn);
 
                 if (valueMismatch || endsOnMismatch) {
@@ -80,7 +82,7 @@ public class VoucherSyncHealthCheck implements SapoSyncHealthCheck {
                             voucher.getId(),
                             voucher.getCode(),
                             DiscrepancyType.VALUE_MISMATCH,
-                            "local value=" + localValue + " vs sapo value=" + remoteValue
+                            "local value=" + voucher.getValue() + " vs sapo value=" + remoteValue
                                     + ", local expiresAt=" + (voucher.getExpiresAt() != null ? voucher.getExpiresAt().toString() : null)
                                     + " vs sapo ends_on=" + remoteEndsOn));
                 }
@@ -91,19 +93,25 @@ public class VoucherSyncHealthCheck implements SapoSyncHealthCheck {
         return candidates;
     }
 
+    private boolean checkValueMismatch(BigDecimal localValue, String remoteValue) {
+        if (localValue == null || remoteValue == null) {
+            return localValue != null || remoteValue != null;
+        }
+        try {
+            return localValue.compareTo(new BigDecimal(remoteValue)) != 0;
+        } catch (NumberFormatException ex) {
+            log.warn("Could not parse remote value '{}' for mismatch check: {}", remoteValue, ex.getMessage());
+            return true;
+        }
+    }
+
     private boolean checkEndsOnMismatch(LocalDateTime localEndsOn, String remoteEndsOn) {
         if (localEndsOn == null || remoteEndsOn == null) {
             return localEndsOn != null || remoteEndsOn != null;
         }
 
         try {
-            LocalDateTime remoteDateTime;
-            try {
-                remoteDateTime = OffsetDateTime.parse(remoteEndsOn).toLocalDateTime();
-            } catch (DateTimeException ex) {
-                remoteDateTime = LocalDateTime.parse(remoteEndsOn);
-            }
-
+            LocalDateTime remoteDateTime = SapoDateTimeParser.parseTolerant(remoteEndsOn);
             LocalDateTime localTruncated = localEndsOn.truncatedTo(ChronoUnit.MINUTES);
             LocalDateTime remoteTruncated = remoteDateTime.truncatedTo(ChronoUnit.MINUTES);
             return !localTruncated.equals(remoteTruncated);

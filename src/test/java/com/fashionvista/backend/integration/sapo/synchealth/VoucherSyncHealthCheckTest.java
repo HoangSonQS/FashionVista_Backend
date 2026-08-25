@@ -115,6 +115,36 @@ class VoucherSyncHealthCheckTest {
     }
 
     @Test
+    void checkAll_SyncedValueSameNumericDifferentScale_NoMismatch() {
+        Voucher voucher = Voucher.builder()
+                .id(1L).code("SUMMER10").type(VoucherType.PERCENT).value(new BigDecimal("10.00"))
+                .sapoSyncStatus(SapoSyncStatus.SYNCED).sapoPriceRuleId(501L)
+                .expiresAt(LocalDateTime.parse("2026-09-01T00:00")).build();
+        when(voucherRepository.findByActiveTrueAndSapoSyncStatusNot(SapoSyncStatus.SYNCED)).thenReturn(List.of());
+        when(voucherRepository.findByActiveTrueAndSapoSyncStatus(SapoSyncStatus.SYNCED)).thenReturn(List.of(voucher));
+        when(sapoApiClient.getPriceRule(501L)).thenReturn(responseWithValue(501L, "10", "2026-09-01T00:00"));
+
+        List<DiscrepancyCandidate> candidates = voucherSyncHealthCheck.checkAll();
+
+        assertThat(candidates).isEmpty();
+    }
+
+    @Test
+    void checkAll_SyncedValueUnparseable_ReturnsMismatchCandidate() {
+        Voucher voucher = Voucher.builder()
+                .id(1L).code("SUMMER10").type(VoucherType.PERCENT).value(BigDecimal.TEN)
+                .sapoSyncStatus(SapoSyncStatus.SYNCED).sapoPriceRuleId(501L)
+                .expiresAt(LocalDateTime.parse("2026-09-01T00:00")).build();
+        when(voucherRepository.findByActiveTrueAndSapoSyncStatusNot(SapoSyncStatus.SYNCED)).thenReturn(List.of());
+        when(voucherRepository.findByActiveTrueAndSapoSyncStatus(SapoSyncStatus.SYNCED)).thenReturn(List.of(voucher));
+        when(sapoApiClient.getPriceRule(501L)).thenReturn(responseWithValue(501L, "not-a-number", "2026-09-01T00:00"));
+
+        List<DiscrepancyCandidate> candidates = voucherSyncHealthCheck.checkAll();
+
+        assertThat(candidates).hasSize(1);
+    }
+
+    @Test
     void checkAll_SapoApiThrows_ReturnsEmptyAndDoesNotThrow() {
         Voucher voucher = Voucher.builder()
                 .id(1L).code("SUMMER10").type(VoucherType.PERCENT).value(BigDecimal.TEN)

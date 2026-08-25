@@ -3,6 +3,7 @@ package com.fashionvista.backend.service.impl;
 import com.fashionvista.backend.dto.AdminVoucherResponse;
 import com.fashionvista.backend.dto.VoucherCreateRequest;
 import com.fashionvista.backend.dto.VoucherUpdateRequest;
+import com.fashionvista.backend.entity.SapoSyncStatus;
 import com.fashionvista.backend.entity.Voucher;
 import com.fashionvista.backend.entity.VoucherType;
 import com.fashionvista.backend.integration.sapo.service.SapoVoucherSyncService;
@@ -10,14 +11,14 @@ import com.fashionvista.backend.repository.VoucherRepository;
 import com.fashionvista.backend.service.AdminVoucherService;
 import jakarta.persistence.EntityNotFoundException;
 import java.math.BigDecimal;
-import org.springframework.transaction.support.TransactionSynchronization;
-import org.springframework.transaction.support.TransactionSynchronizationManager;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 @Service
 @RequiredArgsConstructor
@@ -94,6 +95,7 @@ public class AdminVoucherServiceImpl implements AdminVoucherService {
     public AdminVoucherResponse updateVoucher(Long id, VoucherUpdateRequest request) {
         Voucher voucher = voucherRepository.findById(id)
             .orElseThrow(() -> new EntityNotFoundException("Không tìm thấy voucher với ID: " + id));
+        boolean wasActive = voucher.isActive();
 
         // Update fields
         if (request.getCode() != null && !request.getCode().equals(voucher.getCode())) {
@@ -141,8 +143,19 @@ public class AdminVoucherServiceImpl implements AdminVoucherService {
             }
         }
 
+        boolean deactivating = wasActive && !voucher.isActive();
+        if (!deactivating) {
+            voucher.setSapoSyncStatus(SapoSyncStatus.PENDING);
+        }
         voucher = voucherRepository.save(voucher);
-        schedulePushVoucherAfterCommit(voucher.getId());
+
+        if (deactivating) {
+            if (voucher.getSapoPriceRuleId() != null) {
+                scheduleDeactivateVoucherAfterCommit(voucher.getSapoPriceRuleId());
+            }
+        } else {
+            schedulePushVoucherAfterCommit(voucher.getId());
+        }
         return toAdminVoucherResponse(voucher);
     }
 

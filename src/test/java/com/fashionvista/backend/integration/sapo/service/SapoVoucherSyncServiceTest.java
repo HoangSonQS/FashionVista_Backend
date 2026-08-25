@@ -184,6 +184,24 @@ class SapoVoucherSyncServiceTest {
     }
 
     @Test
+    void pullVoucher_RemoteEndsOnHasUtcOffset_ParsesSuccessfully() {
+        Voucher voucher = Voucher.builder()
+                .id(1L).code("SUMMER10").type(VoucherType.PERCENT).value(BigDecimal.TEN)
+                .sapoSyncStatus(SapoSyncStatus.SYNCED).sapoPriceRuleId(501L).build();
+        SapoPriceRuleResponse response = priceRuleResponse(501L);
+        response.getPriceRule().setValue("20");
+        response.getPriceRule().setEndsOn("2026-09-01T00:00:00+07:00");
+        when(voucherRepository.findById(1L)).thenReturn(Optional.of(voucher));
+        when(sapoApiClient.getPriceRule(501L)).thenReturn(response);
+        when(voucherRepository.save(voucher)).thenReturn(voucher);
+
+        boolean result = sapoVoucherSyncService.pullVoucher(1L);
+
+        assertThat(result).isTrue();
+        assertThat(voucher.getExpiresAt()).isNotNull();
+    }
+
+    @Test
     void pullVoucher_NeverPushed_ReturnsFalse() {
         Voucher voucher = Voucher.builder().id(1L).code("SUMMER10").sapoPriceRuleId(null).build();
         when(voucherRepository.findById(1L)).thenReturn(Optional.of(voucher));

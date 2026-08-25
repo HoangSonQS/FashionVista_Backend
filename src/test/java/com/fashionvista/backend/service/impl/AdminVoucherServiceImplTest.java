@@ -12,6 +12,7 @@ import static org.mockito.Mockito.when;
 import com.fashionvista.backend.dto.AdminVoucherResponse;
 import com.fashionvista.backend.dto.VoucherCreateRequest;
 import com.fashionvista.backend.dto.VoucherUpdateRequest;
+import com.fashionvista.backend.entity.SapoSyncStatus;
 import com.fashionvista.backend.entity.Voucher;
 import com.fashionvista.backend.entity.VoucherType;
 import com.fashionvista.backend.integration.sapo.service.SapoVoucherSyncService;
@@ -122,6 +123,71 @@ class AdminVoucherServiceImplTest {
 
         assertEquals(BigDecimal.valueOf(15), result.getValue());
         verify(sapoVoucherSyncService).pushVoucher(1L);
+    }
+
+    @Test
+    void updateVoucher_ActiveToInactiveWithSapoPriceRuleId_TriggersDeactivateNotPush() {
+        voucher.setSapoPriceRuleId(501L);
+        VoucherUpdateRequest request = new VoucherUpdateRequest(
+                null, null, null, null, null, null, false, null, null);
+        when(voucherRepository.findById(1L)).thenReturn(Optional.of(voucher));
+        when(voucherRepository.save(any(Voucher.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        adminVoucherService.updateVoucher(1L, request);
+
+        verify(sapoVoucherSyncService).deactivateVoucher(501L);
+        verify(sapoVoucherSyncService, never()).pushVoucher(any());
+    }
+
+    @Test
+    void updateVoucher_ActiveToInactiveWithoutSapoPriceRuleId_DoesNotTriggerDeactivateOrPush() {
+        voucher.setSapoPriceRuleId(null);
+        VoucherUpdateRequest request = new VoucherUpdateRequest(
+                null, null, null, null, null, null, false, null, null);
+        when(voucherRepository.findById(1L)).thenReturn(Optional.of(voucher));
+        when(voucherRepository.save(any(Voucher.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        adminVoucherService.updateVoucher(1L, request);
+
+        verify(sapoVoucherSyncService, never()).deactivateVoucher(any());
+        verify(sapoVoucherSyncService, never()).pushVoucher(any());
+    }
+
+    @Test
+    void updateVoucher_ActiveToInactive_WithinActiveTransaction_DefersDeactivateUntilAfterCommit() {
+        voucher.setSapoPriceRuleId(501L);
+        VoucherUpdateRequest request = new VoucherUpdateRequest(
+                null, null, null, null, null, null, false, null, null);
+        when(voucherRepository.findById(1L)).thenReturn(Optional.of(voucher));
+        when(voucherRepository.save(any(Voucher.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        TransactionSynchronizationManager.initSynchronization();
+        try {
+            adminVoucherService.updateVoucher(1L, request);
+
+            verify(sapoVoucherSyncService, never()).deactivateVoucher(any());
+
+            for (TransactionSynchronization synchronization : TransactionSynchronizationManager.getSynchronizations()) {
+                synchronization.afterCommit();
+            }
+
+            verify(sapoVoucherSyncService).deactivateVoucher(501L);
+        } finally {
+            TransactionSynchronizationManager.clearSynchronization();
+        }
+    }
+
+    @Test
+    void updateVoucher_RemainsActive_ResetsSapoSyncStatusToPending() {
+        voucher.setSapoSyncStatus(SapoSyncStatus.SYNCED);
+        VoucherUpdateRequest request = new VoucherUpdateRequest(
+                null, null, BigDecimal.valueOf(15), null, null, null, null, null, null);
+        when(voucherRepository.findById(1L)).thenReturn(Optional.of(voucher));
+        when(voucherRepository.save(any(Voucher.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        adminVoucherService.updateVoucher(1L, request);
+
+        assertEquals(SapoSyncStatus.PENDING, voucher.getSapoSyncStatus());
     }
 
     @Test
