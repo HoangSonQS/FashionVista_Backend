@@ -1,6 +1,8 @@
 package com.fashionvista.backend.integration.sapo.client;
 
 import com.fashionvista.backend.integration.sapo.config.SapoOutboundProperties;
+import com.fashionvista.backend.integration.sapo.dto.SapoFulfillmentPushRequest;
+import com.fashionvista.backend.integration.sapo.dto.SapoFulfillmentPushResponse;
 import com.fashionvista.backend.integration.sapo.dto.SapoOrderPushRequest;
 import com.fashionvista.backend.integration.sapo.dto.SapoOrderPushResponse;
 import com.fashionvista.backend.integration.sapo.dto.SapoProductPushRequest;
@@ -75,5 +77,27 @@ public class SapoApiClient {
                 .uri("/admin/products/{id}.json", sapoProductId)
                 .retrieve()
                 .body(SapoProductPushResponse.class);
+    }
+
+    public SapoFulfillmentPushResponse createFulfillment(String sapoOrderId, SapoFulfillmentPushRequest request) {
+        return restClient.post()
+                .uri("/admin/orders/{orderId}/fulfillments.json", sapoOrderId)
+                .body(request)
+                .retrieve()
+                .body(SapoFulfillmentPushResponse.class);
+    }
+
+    public SapoFulfillmentPushResponse completeFulfillment(String sapoOrderId, String sapoFulfillmentId) {
+        return restClient.post()
+                .uri("/admin/orders/{orderId}/fulfillments/{fulfillmentId}/complete.json", sapoOrderId, sapoFulfillmentId)
+                .retrieve()
+                .body(SapoFulfillmentPushResponse.class);
+    }
+
+    public SapoFulfillmentPushResponse cancelFulfillment(String sapoOrderId, String sapoFulfillmentId) {
+        return restClient.post()
+                .uri("/admin/orders/{orderId}/fulfillments/{fulfillmentId}/cancel.json", sapoOrderId, sapoFulfillmentId)
+                .retrieve()
+                .body(SapoFulfillmentPushResponse.class);
     }
 }
