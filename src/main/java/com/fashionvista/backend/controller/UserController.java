@@ -6,6 +6,7 @@ import com.fashionvista.backend.dto.ChangePasswordRequest;
 import com.fashionvista.backend.dto.UpdateProfileRequest;
 import com.fashionvista.backend.dto.UserProfileResponse;
 import com.fashionvista.backend.entity.Address;
+import com.fashionvista.backend.integration.sapo.service.SapoCustomerSyncService;
 import com.fashionvista.backend.repository.AddressRepository;
 import com.fashionvista.backend.repository.UserRepository;
 import com.fashionvista.backend.service.RefreshTokenService;
@@ -35,6 +36,7 @@ public class UserController {
     private final AddressRepository addressRepository;
     private final PasswordEncoder passwordEncoder;
     private final RefreshTokenService refreshTokenService;
+    private final SapoCustomerSyncService sapoCustomerSyncService;
 
     @GetMapping
     public UserProfileResponse getProfile() {
@@ -55,6 +57,7 @@ public class UserController {
         user.setFullName(request.getFullName());
         user.setPhoneNumber(request.getPhoneNumber());
         var saved = userRepository.save(user);
+        sapoCustomerSyncService.pushCustomer(saved.getId());
         return UserProfileResponse.builder()
             .id(saved.getId())
             .email(saved.getEmail())
