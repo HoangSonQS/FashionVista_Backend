@@ -101,7 +101,7 @@ public class User {
     private Long sapoCustomerId;
 
     @Enumerated(EnumType.STRING)
-    @Column(name = "sapo_sync_status", nullable = false, length = 32)
+    @Column(name = "sapo_sync_status", nullable = false, columnDefinition = "varchar(32) not null default 'PENDING'")
     @Builder.Default
     private SapoSyncStatus sapoSyncStatus = SapoSyncStatus.PENDING;
 
