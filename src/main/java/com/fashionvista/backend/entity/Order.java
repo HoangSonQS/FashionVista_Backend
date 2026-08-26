@@ -111,6 +111,22 @@ public class Order {
     @Column(name = "sapo_synced_at")
     private LocalDateTime sapoSyncedAt;
 
+    @Column(name = "carrier", length = 50)
+    private String carrier;
+
+    @Column(name = "sapo_fulfillment_id", length = 64)
+    private String sapoFulfillmentId;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "sapo_fulfillment_sync_status", columnDefinition = "varchar(20)")
+    private SapoSyncStatus sapoFulfillmentSyncStatus;
+
+    @Column(name = "sapo_fulfillment_sync_error", length = 500)
+    private String sapoFulfillmentSyncError;
+
+    @Column(name = "sapo_fulfillment_synced_at")
+    private LocalDateTime sapoFulfillmentSyncedAt;
+
     @OneToMany(mappedBy = "order", fetch = FetchType.LAZY, cascade = jakarta.persistence.CascadeType.ALL, orphanRemoval = true)
     @Builder.Default
     private List<OrderItem> items = new ArrayList<>();
