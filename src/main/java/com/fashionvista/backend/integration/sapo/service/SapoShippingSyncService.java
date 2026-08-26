@@ -21,6 +21,7 @@ import org.springframework.transaction.annotation.Transactional;
 public class SapoShippingSyncService {
 
     private static final Logger log = LoggerFactory.getLogger(SapoShippingSyncService.class);
+    private static final int SAPO_SYNC_ERROR_MAX_LENGTH = 500;
 
     private final SapoApiClient sapoApiClient;
     private final OrderRepository orderRepository;
@@ -91,7 +92,8 @@ public class SapoShippingSyncService {
     @Transactional
     public void retryFailedFulfillments() {
         List<Order> failedOrders =
-                orderRepository.findBySapoFulfillmentSyncStatusAndTrackingNumberIsNotNull(SapoSyncStatus.FAILED);
+                orderRepository.findBySapoFulfillmentSyncStatusAndTrackingNumberIsNotNullAndSapoFulfillmentIdIsNull(
+                        SapoSyncStatus.FAILED);
         for (Order order : failedOrders) {
             doPushFulfillment(order);
         }
@@ -130,7 +132,11 @@ public class SapoShippingSyncService {
     }
 
     private void applyFailure(Order order, String errorMessage) {
+        String safeMessage = errorMessage != null ? errorMessage : "Unknown error";
+        if (safeMessage.length() > SAPO_SYNC_ERROR_MAX_LENGTH) {
+            safeMessage = safeMessage.substring(0, SAPO_SYNC_ERROR_MAX_LENGTH);
+        }
         order.setSapoFulfillmentSyncStatus(SapoSyncStatus.FAILED);
-        order.setSapoFulfillmentSyncError(errorMessage);
+        order.setSapoFulfillmentSyncError(safeMessage);
     }
 }

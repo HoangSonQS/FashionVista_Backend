@@ -27,6 +27,8 @@ import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.util.StringUtils;
 import org.springframework.web.client.RestTemplate;
 
@@ -108,7 +110,8 @@ public class ShippingServiceImpl implements ShippingService {
         order.setUpdatedAt(LocalDateTime.now());
         orderRepository.save(order);
         if (order.getSapoOrderId() != null) {
-            sapoShippingSyncService.pushFulfillment(order.getId());
+            Long orderId = order.getId();
+            afterCommitOrNow(() -> sapoShippingSyncService.pushFulfillment(orderId));
         }
         return adminOrderService.getOrderById(order.getId());
     }
@@ -125,7 +128,8 @@ public class ShippingServiceImpl implements ShippingService {
         order.setUpdatedAt(LocalDateTime.now());
         orderRepository.save(order);
         if (order.getSapoFulfillmentId() != null) {
-            sapoShippingSyncService.cancelFulfillment(order.getId());
+            Long orderId = order.getId();
+            afterCommitOrNow(() -> sapoShippingSyncService.cancelFulfillment(orderId));
         }
         return adminOrderService.getOrderById(order.getId());
     }
@@ -156,13 +160,27 @@ public class ShippingServiceImpl implements ShippingService {
             order.setUpdatedAt(LocalDateTime.now());
             orderRepository.save(order);
             if (order.getSapoFulfillmentId() != null) {
+                Long orderId = order.getId();
                 if (status.equals("delivered")) {
-                    sapoShippingSyncService.completeFulfillment(order.getId());
+                    afterCommitOrNow(() -> sapoShippingSyncService.completeFulfillment(orderId));
                 } else if (status.equals("return") || status.equals("returned")) {
-                    sapoShippingSyncService.cancelFulfillment(order.getId());
+                    afterCommitOrNow(() -> sapoShippingSyncService.cancelFulfillment(orderId));
                 }
             }
         });
+    }
+
+    private void afterCommitOrNow(Runnable action) {
+        if (TransactionSynchronizationManager.isSynchronizationActive()) {
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override
+                public void afterCommit() {
+                    action.run();
+                }
+            });
+        } else {
+            action.run();
+        }
     }
 
     private Integer resolveServiceId(String service) {

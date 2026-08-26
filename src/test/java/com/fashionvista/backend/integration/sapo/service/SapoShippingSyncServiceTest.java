@@ -193,7 +193,7 @@ class SapoShippingSyncServiceTest {
                 .carrier("GHN")
                 .sapoFulfillmentSyncStatus(SapoSyncStatus.FAILED)
                 .build();
-        when(orderRepository.findBySapoFulfillmentSyncStatusAndTrackingNumberIsNotNull(SapoSyncStatus.FAILED))
+        when(orderRepository.findBySapoFulfillmentSyncStatusAndTrackingNumberIsNotNullAndSapoFulfillmentIdIsNull(SapoSyncStatus.FAILED))
                 .thenReturn(List.of(order1));
         SapoFulfillmentPushResponse.Fulfillment fulfillment = new SapoFulfillmentPushResponse.Fulfillment();
         fulfillment.setId("1000");
@@ -207,5 +207,56 @@ class SapoShippingSyncServiceTest {
 
         verify(sapoApiClient, times(1)).createFulfillment(eq("sapo-order-8"), any(SapoFulfillmentPushRequest.class));
         assertThat(order1.getSapoFulfillmentSyncStatus()).isEqualTo(SapoSyncStatus.SYNCED);
+    }
+
+    @Test
+    void retryFailedFulfillments_CallsNarrowedRepositoryQuery_ExcludingAlreadyFulfilledOrders() {
+        when(orderRepository.findBySapoFulfillmentSyncStatusAndTrackingNumberIsNotNullAndSapoFulfillmentIdIsNull(SapoSyncStatus.FAILED))
+                .thenReturn(List.of());
+
+        sapoShippingSyncService.retryFailedFulfillments();
+
+        verify(orderRepository, times(1))
+                .findBySapoFulfillmentSyncStatusAndTrackingNumberIsNotNullAndSapoFulfillmentIdIsNull(SapoSyncStatus.FAILED);
+        verify(sapoApiClient, never()).createFulfillment(anyString(), any());
+    }
+
+    @Test
+    void pushFulfillment_ClientThrowsWithNullMessage_SetsFailedWithFallbackMessage() {
+        Order order = Order.builder()
+                .id(10L)
+                .sapoOrderId("sapo-order-10")
+                .trackingNumber("GHN-EEEE5555")
+                .carrier("GHN")
+                .build();
+        when(orderRepository.findById(10L)).thenReturn(Optional.of(order));
+        when(sapoApiClient.createFulfillment(eq("sapo-order-10"), any(SapoFulfillmentPushRequest.class)))
+                .thenThrow(new RuntimeException((String) null));
+        when(orderRepository.save(order)).thenReturn(order);
+
+        sapoShippingSyncService.pushFulfillment(10L);
+
+        assertThat(order.getSapoFulfillmentSyncStatus()).isEqualTo(SapoSyncStatus.FAILED);
+        assertThat(order.getSapoFulfillmentSyncError()).isEqualTo("Unknown error");
+    }
+
+    @Test
+    void pushFulfillment_ClientThrowsWithOverlongMessage_TruncatesTo500Chars() {
+        Order order = Order.builder()
+                .id(11L)
+                .sapoOrderId("sapo-order-11")
+                .trackingNumber("GHN-FFFF6666")
+                .carrier("GHN")
+                .build();
+        when(orderRepository.findById(11L)).thenReturn(Optional.of(order));
+        String longMessage = "x".repeat(600);
+        when(sapoApiClient.createFulfillment(eq("sapo-order-11"), any(SapoFulfillmentPushRequest.class)))
+                .thenThrow(new RuntimeException(longMessage));
+        when(orderRepository.save(order)).thenReturn(order);
+
+        sapoShippingSyncService.pushFulfillment(11L);
+
+        assertThat(order.getSapoFulfillmentSyncStatus()).isEqualTo(SapoSyncStatus.FAILED);
+        assertThat(order.getSapoFulfillmentSyncError()).hasSize(500);
     }
 }
