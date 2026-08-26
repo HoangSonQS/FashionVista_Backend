@@ -20,6 +20,7 @@ import com.fashionvista.backend.entity.EmailVerificationToken;
 import com.fashionvista.backend.entity.PasswordResetToken;
 import com.fashionvista.backend.entity.User;
 import com.fashionvista.backend.entity.UserRole;
+import com.fashionvista.backend.integration.sapo.service.SapoCustomerSyncService;
 import com.fashionvista.backend.repository.EmailVerificationTokenRepository;
 import com.fashionvista.backend.repository.PasswordResetTokenRepository;
 import com.fashionvista.backend.repository.RefreshTokenRepository;
@@ -31,6 +32,8 @@ import com.fashionvista.backend.service.LoginActivityService;
 import com.fashionvista.backend.service.LoginRateLimitService;
 import com.fashionvista.backend.service.RefreshTokenService;
 import com.fashionvista.backend.service.TokenBlacklistService;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
@@ -52,6 +55,7 @@ public class AuthServiceImpl implements AuthService {
     private final RefreshTokenService refreshTokenService;
     private final TokenBlacklistService tokenBlacklistService;
     private final LoginRateLimitService loginRateLimitService;
+    private final SapoCustomerSyncService sapoCustomerSyncService;
 
     private AuthResponse buildAuthResponse(User user, HttpServletRequest request) {
         UserResponse userResponse = UserResponse.fromEntity(user);
@@ -91,6 +95,8 @@ public class AuthServiceImpl implements AuthService {
                 .build();
 
         User saved = userRepository.save(user);
+        scheduleCustomerPushAfterCommit(saved.getId());
+
         String verificationToken = generateVerificationToken();
         EmailVerificationToken tokenEntity = EmailVerificationToken.builder()
                 .token(verificationToken)
@@ -100,6 +106,19 @@ public class AuthServiceImpl implements AuthService {
         emailService.sendVerificationEmail(saved, verificationToken);
 
         return buildAuthResponse(saved, null);
+    }
+
+    private void scheduleCustomerPushAfterCommit(Long userId) {
+        if (TransactionSynchronizationManager.isSynchronizationActive()) {
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override
+                public void afterCommit() {
+                    sapoCustomerSyncService.pushCustomer(userId);
+                }
+            });
+        } else {
+            sapoCustomerSyncService.pushCustomer(userId);
+        }
     }
 
     @Override
