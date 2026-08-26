@@ -4,10 +4,13 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+
+import org.mockito.ArgumentCaptor;
 
 import com.fashionvista.backend.entity.Order;
 import com.fashionvista.backend.entity.SapoSyncStatus;
@@ -80,6 +83,44 @@ class SapoShippingSyncServiceTest {
     }
 
     @Test
+    void completeFulfillment_ClientThrows_SetsFailedWithErrorMessage() {
+        Order order = Order.builder()
+                .id(1L)
+                .sapoOrderId("555")
+                .sapoFulfillmentId("777")
+                .build();
+        when(orderRepository.findById(1L)).thenReturn(Optional.of(order));
+        doThrow(new RuntimeException("Sapo API down"))
+                .when(sapoApiClient).completeFulfillment("555", "777");
+
+        sapoShippingSyncService.completeFulfillment(1L);
+
+        ArgumentCaptor<Order> captor = ArgumentCaptor.forClass(Order.class);
+        verify(orderRepository).save(captor.capture());
+        assertThat(captor.getValue().getSapoFulfillmentSyncStatus()).isEqualTo(SapoSyncStatus.FAILED);
+        assertThat(captor.getValue().getSapoFulfillmentSyncError()).isEqualTo("Sapo API down");
+    }
+
+    @Test
+    void cancelFulfillment_ClientThrows_SetsFailedWithErrorMessage() {
+        Order order = Order.builder()
+                .id(1L)
+                .sapoOrderId("555")
+                .sapoFulfillmentId("777")
+                .build();
+        when(orderRepository.findById(1L)).thenReturn(Optional.of(order));
+        doThrow(new RuntimeException("Sapo API down"))
+                .when(sapoApiClient).cancelFulfillment("555", "777");
+
+        sapoShippingSyncService.cancelFulfillment(1L);
+
+        ArgumentCaptor<Order> captor = ArgumentCaptor.forClass(Order.class);
+        verify(orderRepository).save(captor.capture());
+        assertThat(captor.getValue().getSapoFulfillmentSyncStatus()).isEqualTo(SapoSyncStatus.FAILED);
+        assertThat(captor.getValue().getSapoFulfillmentSyncError()).isEqualTo("Sapo API down");
+    }
+
+    @Test
     void pushFulfillment_OrderNotYetSyncedToSapo_SkipsWithoutClientCall() {
         Order order = Order.builder().id(3L).sapoOrderId(null).trackingNumber("GHN-CCCC3333").build();
         when(orderRepository.findById(3L)).thenReturn(Optional.of(order));
@@ -128,6 +169,8 @@ class SapoShippingSyncServiceTest {
                 .sapoOrderId("sapo-order-7")
                 .sapoFulfillmentId("fid-7")
                 .sapoFulfillmentSyncStatus(SapoSyncStatus.SYNCED)
+                .sapoFulfillmentSyncError("old error")
+                .sapoFulfillmentSyncedAt(java.time.LocalDateTime.now())
                 .build();
         when(orderRepository.findById(7L)).thenReturn(Optional.of(order));
         when(orderRepository.save(order)).thenReturn(order);
@@ -137,6 +180,8 @@ class SapoShippingSyncServiceTest {
         verify(sapoApiClient, times(1)).cancelFulfillment("sapo-order-7", "fid-7");
         assertThat(order.getSapoFulfillmentId()).isNull();
         assertThat(order.getSapoFulfillmentSyncStatus()).isNull();
+        assertThat(order.getSapoFulfillmentSyncError()).isNull();
+        assertThat(order.getSapoFulfillmentSyncedAt()).isNull();
     }
 
     @Test

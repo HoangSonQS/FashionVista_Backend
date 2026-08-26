@@ -56,6 +56,8 @@ public class SapoShippingSyncService {
             sapoApiClient.completeFulfillment(order.getSapoOrderId(), order.getSapoFulfillmentId());
         } catch (RuntimeException ex) {
             log.error("Sapo fulfillment complete failed for order id={}: {}", orderId, ex.getMessage(), ex);
+            applyFailure(order, ex.getMessage());
+            orderRepository.save(order);
         }
     }
 
@@ -80,6 +82,8 @@ public class SapoShippingSyncService {
             orderRepository.save(order);
         } catch (RuntimeException ex) {
             log.error("Sapo fulfillment cancel failed for order id={}: {}", orderId, ex.getMessage(), ex);
+            applyFailure(order, ex.getMessage());
+            orderRepository.save(order);
         }
     }
 
