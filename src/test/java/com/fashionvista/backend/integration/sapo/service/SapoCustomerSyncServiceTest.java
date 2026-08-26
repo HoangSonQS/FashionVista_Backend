@@ -13,8 +13,8 @@ import com.fashionvista.backend.entity.SapoSyncStatus;
 import com.fashionvista.backend.entity.User;
 import com.fashionvista.backend.entity.UserRole;
 import com.fashionvista.backend.integration.sapo.client.SapoApiClient;
-import com.fashionvista.backend.integration.sapo.dto.SapoCustomerRequest;
-import com.fashionvista.backend.integration.sapo.dto.SapoCustomerResponse;
+import com.fashionvista.backend.integration.sapo.dto.SapoCustomerPushRequest;
+import com.fashionvista.backend.integration.sapo.dto.SapoCustomerPushResponse;
 import com.fashionvista.backend.repository.UserRepository;
 import java.time.LocalDate;
 import java.util.Optional;
@@ -36,10 +36,10 @@ class SapoCustomerSyncServiceTest {
     @InjectMocks
     private SapoCustomerSyncService sapoCustomerSyncService;
 
-    private static SapoCustomerResponse customerResponse(String id) {
-        SapoCustomerResponse.Customer customer = new SapoCustomerResponse.Customer();
+    private static SapoCustomerPushResponse customerResponse(String id) {
+        SapoCustomerPushResponse.Customer customer = new SapoCustomerPushResponse.Customer();
         customer.setId(id);
-        SapoCustomerResponse response = new SapoCustomerResponse();
+        SapoCustomerPushResponse response = new SapoCustomerPushResponse();
         response.setCustomer(customer);
         return response;
     }
@@ -62,8 +62,8 @@ class SapoCustomerSyncServiceTest {
     void pushCustomer_NeverSynced_CreatesCustomerAndStoresId() {
         User user = customerUser();
         when(userRepository.findById(1L)).thenReturn(Optional.of(user));
-        when(sapoApiClient.createCustomer(any(SapoCustomerRequest.class))).thenAnswer(invocation -> {
-            SapoCustomerRequest request = invocation.getArgument(0);
+        when(sapoApiClient.createCustomer(any(SapoCustomerPushRequest.class))).thenAnswer(invocation -> {
+            SapoCustomerPushRequest request = invocation.getArgument(0);
             assertThat(request.getCustomer().getFirstName()).isEqualTo("Nguyen");
             assertThat(request.getCustomer().getLastName()).isEqualTo("Anh");
             assertThat(request.getCustomer().getEmail()).isEqualTo("anh@example.com");
@@ -88,7 +88,7 @@ class SapoCustomerSyncServiceTest {
         user.setSapoCustomerId(501L);
         user.setSapoSyncStatus(SapoSyncStatus.SYNCED);
         when(userRepository.findById(1L)).thenReturn(Optional.of(user));
-        when(sapoApiClient.updateCustomer(eq(501L), any(SapoCustomerRequest.class)))
+        when(sapoApiClient.updateCustomer(eq(501L), any(SapoCustomerPushRequest.class)))
                 .thenReturn(customerResponse("501"));
         when(userRepository.save(user)).thenReturn(user);
 
@@ -96,7 +96,7 @@ class SapoCustomerSyncServiceTest {
 
         assertThat(user.getSapoSyncStatus()).isEqualTo(SapoSyncStatus.SYNCED);
         verify(sapoApiClient, never()).createCustomer(any());
-        verify(sapoApiClient).updateCustomer(eq(501L), any(SapoCustomerRequest.class));
+        verify(sapoApiClient).updateCustomer(eq(501L), any(SapoCustomerPushRequest.class));
     }
 
     @Test
@@ -125,7 +125,7 @@ class SapoCustomerSyncServiceTest {
     void pushCustomer_ApiThrows_MarksFailedAndDoesNotRethrow() {
         User user = customerUser();
         when(userRepository.findById(1L)).thenReturn(Optional.of(user));
-        when(sapoApiClient.createCustomer(any(SapoCustomerRequest.class)))
+        when(sapoApiClient.createCustomer(any(SapoCustomerPushRequest.class)))
                 .thenThrow(new RuntimeException("Sapo down"));
         when(userRepository.save(user)).thenReturn(user);
 
@@ -138,7 +138,7 @@ class SapoCustomerSyncServiceTest {
     void pushCustomer_NullResponse_MarksFailed() {
         User user = customerUser();
         when(userRepository.findById(1L)).thenReturn(Optional.of(user));
-        when(sapoApiClient.createCustomer(any(SapoCustomerRequest.class))).thenReturn(null);
+        when(sapoApiClient.createCustomer(any(SapoCustomerPushRequest.class))).thenReturn(null);
         when(userRepository.save(user)).thenReturn(user);
 
         sapoCustomerSyncService.pushCustomer(1L);
@@ -151,7 +151,7 @@ class SapoCustomerSyncServiceTest {
     void pushCustomer_IncompleteResponseMissingId_MarksFailed() {
         User user = customerUser();
         when(userRepository.findById(1L)).thenReturn(Optional.of(user));
-        when(sapoApiClient.createCustomer(any(SapoCustomerRequest.class))).thenReturn(customerResponse(null));
+        when(sapoApiClient.createCustomer(any(SapoCustomerPushRequest.class))).thenReturn(customerResponse(null));
         when(userRepository.save(user)).thenReturn(user);
 
         sapoCustomerSyncService.pushCustomer(1L);

@@ -5,8 +5,8 @@ import com.fashionvista.backend.entity.SapoSyncStatus;
 import com.fashionvista.backend.entity.User;
 import com.fashionvista.backend.entity.UserRole;
 import com.fashionvista.backend.integration.sapo.client.SapoApiClient;
-import com.fashionvista.backend.integration.sapo.dto.SapoCustomerRequest;
-import com.fashionvista.backend.integration.sapo.dto.SapoCustomerResponse;
+import com.fashionvista.backend.integration.sapo.dto.SapoCustomerPushRequest;
+import com.fashionvista.backend.integration.sapo.dto.SapoCustomerPushResponse;
 import com.fashionvista.backend.integration.sapo.util.SapoNameSplitter;
 import com.fashionvista.backend.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
@@ -43,8 +43,8 @@ public class SapoCustomerSyncService {
 
     private void doPush(User user) {
         try {
-            SapoCustomerRequest request = buildCustomerRequest(user);
-            SapoCustomerResponse response = user.getSapoCustomerId() == null
+            SapoCustomerPushRequest request = buildCustomerRequest(user);
+            SapoCustomerPushResponse response = user.getSapoCustomerId() == null
                     ? sapoApiClient.createCustomer(request)
                     : sapoApiClient.updateCustomer(user.getSapoCustomerId(), request);
             if (response == null || response.getCustomer() == null || response.getCustomer().getId() == null) {
@@ -59,9 +59,9 @@ public class SapoCustomerSyncService {
         }
     }
 
-    private SapoCustomerRequest buildCustomerRequest(User user) {
+    private SapoCustomerPushRequest buildCustomerRequest(User user) {
         SapoNameSplitter.Split name = SapoNameSplitter.splitLastName(user.getFullName());
-        SapoCustomerRequest.Customer.CustomerBuilder customer = SapoCustomerRequest.Customer.builder()
+        SapoCustomerPushRequest.Customer.CustomerBuilder customer = SapoCustomerPushRequest.Customer.builder()
                 .firstName(name.getFirstName())
                 .lastName(name.getLastName())
                 .email(user.getEmail())
@@ -70,7 +70,7 @@ public class SapoCustomerSyncService {
                 .dob(user.getDateOfBirth() != null ? user.getDateOfBirth().toString() : null)
                 .tags(user.getTier() != null ? "fashionvista_tier_" + user.getTier().name().toLowerCase() : null);
 
-        return SapoCustomerRequest.builder().customer(customer.build()).build();
+        return SapoCustomerPushRequest.builder().customer(customer.build()).build();
     }
 
     private String mapGender(Gender gender) {

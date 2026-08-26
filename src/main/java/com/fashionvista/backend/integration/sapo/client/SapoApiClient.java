@@ -1,10 +1,10 @@
 package com.fashionvista.backend.integration.sapo.client;
 
 import com.fashionvista.backend.integration.sapo.config.SapoOutboundProperties;
+import com.fashionvista.backend.integration.sapo.dto.SapoCustomerPushRequest;
+import com.fashionvista.backend.integration.sapo.dto.SapoCustomerPushResponse;
 import com.fashionvista.backend.integration.sapo.dto.SapoOrderPushRequest;
 import com.fashionvista.backend.integration.sapo.dto.SapoOrderPushResponse;
-import com.fashionvista.backend.integration.sapo.dto.SapoCustomerRequest;
-import com.fashionvista.backend.integration.sapo.dto.SapoCustomerResponse;
 import com.fashionvista.backend.integration.sapo.dto.SapoProductPushRequest;
 import com.fashionvista.backend.integration.sapo.dto.SapoProductPushResponse;
 import java.nio.charset.StandardCharsets;
@@ -79,19 +79,19 @@ public class SapoApiClient {
                 .body(SapoProductPushResponse.class);
     }
 
-    public SapoCustomerResponse createCustomer(SapoCustomerRequest request) {
+    public SapoCustomerPushResponse createCustomer(SapoCustomerPushRequest request) {
         return restClient.post()
                 .uri("/admin/customers.json")
                 .body(request)
                 .retrieve()
-                .body(SapoCustomerResponse.class);
+                .body(SapoCustomerPushResponse.class);
     }
 
-    public SapoCustomerResponse updateCustomer(Long sapoCustomerId, SapoCustomerRequest request) {
+    public SapoCustomerPushResponse updateCustomer(Long sapoCustomerId, SapoCustomerPushRequest request) {
         return restClient.put()
                 .uri("/admin/customers/{id}.json", sapoCustomerId)
                 .body(request)
                 .retrieve()
-                .body(SapoCustomerResponse.class);
+                .body(SapoCustomerPushResponse.class);
     }
 }

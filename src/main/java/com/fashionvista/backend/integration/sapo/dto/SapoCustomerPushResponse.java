@@ -7,7 +7,7 @@ import lombok.NoArgsConstructor;
 @Data
 @NoArgsConstructor
 @JsonIgnoreProperties(ignoreUnknown = true)
-public class SapoCustomerResponse {
+public class SapoCustomerPushResponse {
 
     private Customer customer;
 

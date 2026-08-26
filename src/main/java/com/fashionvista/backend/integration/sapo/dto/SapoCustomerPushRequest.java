@@ -8,7 +8,7 @@ import lombok.Value;
 @Value
 @Builder
 @JsonInclude(JsonInclude.Include.NON_NULL)
-public class SapoCustomerRequest {
+public class SapoCustomerPushRequest {
 
     Customer customer;
 
