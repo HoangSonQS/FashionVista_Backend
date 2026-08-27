@@ -3,6 +3,7 @@ package com.fashionvista.backend.service.impl;
 import com.fashionvista.backend.dto.*;
 import com.fashionvista.backend.entity.*;
 import com.fashionvista.backend.integration.sapo.service.SapoInventorySyncService;
+import com.fashionvista.backend.integration.sapo.service.SapoLedgerSyncService;
 import com.fashionvista.backend.integration.sapo.service.SapoOrderSyncService;
 import com.fashionvista.backend.repository.*;
 import com.fashionvista.backend.service.EmailService;
@@ -30,6 +31,7 @@ import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
+import static org.mockito.Mockito.doReturn;
 
 @ExtendWith(MockitoExtension.class)
 class AdminOrderServiceImplTest {
@@ -60,6 +62,8 @@ class AdminOrderServiceImplTest {
     private SapoOrderSyncService sapoOrderSyncService;
     @Mock
     private SapoInventorySyncService sapoInventorySyncService;
+    @Mock
+    private SapoLedgerSyncService sapoLedgerSyncService;
 
     @InjectMocks
     private AdminOrderServiceImpl adminOrderService;
@@ -302,5 +306,31 @@ class AdminOrderServiceImplTest {
         adminOrderService.addOrderItem(1L, request);
 
         verify(sapoInventorySyncService).pushStock(30L);
+    }
+
+    @Test
+    void createPartialRefund_SavesRefundAndOrder_PushesSapoRefundTransaction() throws Exception {
+        Order order = Order.builder().id(1L).paymentStatus(PaymentStatus.PAID)
+                .paymentMethod(PaymentMethod.VNPAY).user(user).build();
+        Payment payment = Payment.builder().id(2L).order(order).amount(new BigDecimal("100000"))
+                .refundAmount(BigDecimal.ZERO).build();
+        Refund savedRefund = Refund.builder().id(3L).order(order).amount(new BigDecimal("50000"))
+                .refundMethod(RefundMethod.ORIGINAL).build();
+        when(orderRepository.findById(1L)).thenReturn(Optional.of(order));
+        when(paymentRepository.findByOrder(order)).thenReturn(Optional.of(payment));
+        when(refundRepository.save(any(Refund.class))).thenReturn(savedRefund);
+        when(orderRepository.save(any(Order.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        User admin = User.builder().id(2L).email("admin@example.com").build();
+        when(userContextService.getCurrentUser()).thenReturn(admin);
+
+        PartialRefundRequest request = new PartialRefundRequest();
+        request.setAmount(new BigDecimal("50000"));
+        request.setRefundMethod(RefundMethod.ORIGINAL);
+        request.setReason("Customer request");
+        request.setItemIds(List.of());
+
+        adminOrderService.createPartialRefund(1L, request);
+
+        verify(sapoLedgerSyncService).pushRefundTransaction(3L);
     }
 }

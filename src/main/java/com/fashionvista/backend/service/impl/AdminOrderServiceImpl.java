@@ -18,6 +18,7 @@ import com.fashionvista.backend.entity.OrderItem;
 import com.fashionvista.backend.entity.Product;
 import com.fashionvista.backend.entity.ProductVariant;
 import com.fashionvista.backend.integration.sapo.service.SapoInventorySyncService;
+import com.fashionvista.backend.integration.sapo.service.SapoLedgerSyncService;
 import com.fashionvista.backend.integration.sapo.service.SapoOrderSyncService;
 import com.fashionvista.backend.repository.OrderHistoryRepository;
 import com.fashionvista.backend.repository.OrderItemRepository;
@@ -67,6 +68,7 @@ public class AdminOrderServiceImpl implements AdminOrderService {
     private final LoyaltyService loyaltyService;
     private final SapoOrderSyncService sapoOrderSyncService;
     private final SapoInventorySyncService sapoInventorySyncService;
+    private final SapoLedgerSyncService sapoLedgerSyncService;
 
     @Override
     @Transactional(readOnly = true)
@@ -498,6 +500,8 @@ public class AdminOrderServiceImpl implements AdminOrderService {
         }
         paymentRepository.save(payment);
         orderRepository.save(order);
+
+        sapoLedgerSyncService.pushRefundTransaction(refund.getId());
 
         // Ghi log
         recordHistory(order, "refund", 
