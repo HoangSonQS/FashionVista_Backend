@@ -11,10 +11,13 @@ import com.fashionvista.backend.entity.SapoSyncStatus;
 import com.fashionvista.backend.entity.User;
 import java.math.BigDecimal;
 import org.junit.jupiter.api.Test;
-import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.data.jpa.test.autoconfigure.DataJpaTest;
+import org.springframework.boot.jdbc.test.autoconfigure.AutoConfigureTestDatabase;
+import org.springframework.boot.jdbc.test.autoconfigure.AutoConfigureTestDatabase.Replace;
 import org.springframework.test.context.ActiveProfiles;
 
-@SpringBootTest
+@DataJpaTest
+@AutoConfigureTestDatabase(replace = Replace.NONE)
 @ActiveProfiles("test")
 class PaymentRepositoryTest {
 
