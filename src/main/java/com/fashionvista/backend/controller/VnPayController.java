@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fashionvista.backend.entity.Order;
 import com.fashionvista.backend.entity.Payment;
 import com.fashionvista.backend.entity.PaymentStatus;
+import com.fashionvista.backend.integration.sapo.service.SapoLedgerSyncService;
 import com.fashionvista.backend.repository.OrderRepository;
 import com.fashionvista.backend.repository.PaymentRepository;
 import com.fashionvista.backend.service.LoyaltyService;
@@ -40,6 +41,7 @@ public class VnPayController {
     private final ObjectMapper objectMapper;
     private final LoyaltyService loyaltyService;
     private final OrderService orderService;
+    private final SapoLedgerSyncService sapoLedgerSyncService;
 
     @Value("${app.frontend.url}")
     private String frontendUrl;
@@ -144,6 +146,11 @@ public class VnPayController {
 
         orderRepository.save(order);
         paymentRepository.save(payment);
+
+        // Push payment transaction to Sapo ledger
+        if (success) {
+            sapoLedgerSyncService.pushPaymentTransaction(payment.getId());
+        }
 
         // Nếu thanh toán VNPay thành công thì decrease stock và tích điểm
         if (success) {
