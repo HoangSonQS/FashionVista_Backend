@@ -42,6 +42,17 @@ public class AsyncConfig {
         executor.initialize();
         return executor;
     }
+
+    @Bean(name = "sapoLedgerTaskExecutor")
+    public Executor sapoLedgerTaskExecutor() {
+        ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
+        executor.setCorePoolSize(2);
+        executor.setMaxPoolSize(5);
+        executor.setQueueCapacity(50);
+        executor.setThreadNamePrefix("sapo-ledger-");
+        executor.initialize();
+        return executor;
+    }
 }
 
 

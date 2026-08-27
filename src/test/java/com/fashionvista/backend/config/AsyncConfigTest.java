@@ -2,20 +2,22 @@ package com.fashionvista.backend.config;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import java.util.concurrent.Executor;
 import org.junit.jupiter.api.Test;
-import org.springframework.context.annotation.AnnotationConfigApplicationContext;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 
 class AsyncConfigTest {
 
     @Test
-    void sapoShippingTaskExecutor_IsConfiguredWithExpectedPoolSettings() {
-        try (AnnotationConfigApplicationContext context = new AnnotationConfigApplicationContext(AsyncConfig.class)) {
-            ThreadPoolTaskExecutor executor = (ThreadPoolTaskExecutor) context.getBean("sapoShippingTaskExecutor");
+    void sapoLedgerTaskExecutor_IsConfiguredWithExpectedPoolSizesAndPrefix() {
+        AsyncConfig config = new AsyncConfig();
 
-            assertThat(executor.getCorePoolSize()).isEqualTo(2);
-            assertThat(executor.getMaxPoolSize()).isEqualTo(5);
-            assertThat(executor.getThreadNamePrefix()).isEqualTo("sapo-shipping-");
-        }
+        Executor executor = config.sapoLedgerTaskExecutor();
+
+        assertThat(executor).isInstanceOf(ThreadPoolTaskExecutor.class);
+        ThreadPoolTaskExecutor threadPoolTaskExecutor = (ThreadPoolTaskExecutor) executor;
+        assertThat(threadPoolTaskExecutor.getCorePoolSize()).isEqualTo(2);
+        assertThat(threadPoolTaskExecutor.getMaxPoolSize()).isEqualTo(5);
+        assertThat(threadPoolTaskExecutor.getThreadNamePrefix()).isEqualTo("sapo-ledger-");
     }
 }
