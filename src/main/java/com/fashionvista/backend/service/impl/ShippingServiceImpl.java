@@ -10,6 +10,7 @@ import com.fashionvista.backend.dto.ShippingWebhookPayload;
 import com.fashionvista.backend.entity.Address;
 import com.fashionvista.backend.entity.Order;
 import com.fashionvista.backend.entity.OrderStatus;
+import com.fashionvista.backend.integration.sapo.service.SapoShippingSyncService;
 import com.fashionvista.backend.repository.AddressRepository;
 import com.fashionvista.backend.repository.OrderRepository;
 import com.fashionvista.backend.service.AdminOrderService;
@@ -26,6 +27,8 @@ import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.util.StringUtils;
 import org.springframework.web.client.RestTemplate;
 
@@ -37,6 +40,7 @@ public class ShippingServiceImpl implements ShippingService {
     private final AddressRepository addressRepository;
     private final OrderRepository orderRepository;
     private final AdminOrderService adminOrderService;
+    private final SapoShippingSyncService sapoShippingSyncService;
     private final RestTemplate restTemplate = new RestTemplate();
 
     @Override
@@ -98,12 +102,17 @@ public class ShippingServiceImpl implements ShippingService {
 
         String carrier = StringUtils.hasText(request.getCarrier()) ? request.getCarrier().toUpperCase(Locale.ROOT) : "GHN";
         String trackingNumber = carrier + "-" + UUID.randomUUID().toString().substring(0, 8).toUpperCase(Locale.ROOT);
+        order.setCarrier(carrier);
         order.setTrackingNumber(trackingNumber);
         if (order.getStatus() == OrderStatus.CONFIRMED || order.getStatus() == OrderStatus.PROCESSING) {
             order.setStatus(OrderStatus.SHIPPING);
         }
         order.setUpdatedAt(LocalDateTime.now());
         orderRepository.save(order);
+        if (order.getSapoOrderId() != null) {
+            Long orderId = order.getId();
+            afterCommitOrNow(() -> sapoShippingSyncService.pushFulfillment(orderId));
+        }
         return adminOrderService.getOrderById(order.getId());
     }
 
@@ -118,6 +127,10 @@ public class ShippingServiceImpl implements ShippingService {
         }
         order.setUpdatedAt(LocalDateTime.now());
         orderRepository.save(order);
+        if (order.getSapoFulfillmentId() != null) {
+            Long orderId = order.getId();
+            afterCommitOrNow(() -> sapoShippingSyncService.cancelFulfillment(orderId));
+        }
         return adminOrderService.getOrderById(order.getId());
     }
 
@@ -146,7 +159,28 @@ public class ShippingServiceImpl implements ShippingService {
             }
             order.setUpdatedAt(LocalDateTime.now());
             orderRepository.save(order);
+            if (order.getSapoFulfillmentId() != null) {
+                Long orderId = order.getId();
+                if (status.equals("delivered")) {
+                    afterCommitOrNow(() -> sapoShippingSyncService.completeFulfillment(orderId));
+                } else if (status.equals("return") || status.equals("returned")) {
+                    afterCommitOrNow(() -> sapoShippingSyncService.cancelFulfillment(orderId));
+                }
+            }
         });
+    }
+
+    private void afterCommitOrNow(Runnable action) {
+        if (TransactionSynchronizationManager.isSynchronizationActive()) {
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override
+                public void afterCommit() {
+                    action.run();
+                }
+            });
+        } else {
+            action.run();
+        }
     }
 
     private Integer resolveServiceId(String service) {

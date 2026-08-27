@@ -5,6 +5,8 @@ import static org.springframework.test.web.client.match.MockRestRequestMatchers.
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.requestTo;
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withSuccess;
 
+import com.fashionvista.backend.integration.sapo.dto.SapoFulfillmentPushRequest;
+import com.fashionvista.backend.integration.sapo.dto.SapoFulfillmentPushResponse;
 import com.fashionvista.backend.integration.sapo.dto.SapoProductPushRequest;
 import com.fashionvista.backend.integration.sapo.dto.SapoProductPushResponse;
 import java.util.List;
@@ -28,6 +30,15 @@ class SapoApiClientTest {
                 .variants(List.of(variant))
                 .build();
         return SapoProductPushRequest.builder().product(product).build();
+    }
+
+    private SapoFulfillmentPushRequest sampleFulfillmentRequest() {
+        SapoFulfillmentPushRequest.Fulfillment fulfillment = SapoFulfillmentPushRequest.Fulfillment.builder()
+                .trackingNumber("GHN-ABC12345")
+                .trackingCompany("GHN")
+                .notifyCustomer(false)
+                .build();
+        return SapoFulfillmentPushRequest.builder().fulfillment(fulfillment).build();
     }
 
     @Test
@@ -65,5 +76,53 @@ class SapoApiClientTest {
 
         server.verify();
         assertEquals("999", response.getProduct().getId());
+    }
+
+    @Test
+    void createFulfillment_PostsToOrderFulfillmentsJsonAndParsesResponse() {
+        RestClient.Builder builder = RestClient.builder().baseUrl("https://test-store.mysapo.net");
+        MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
+        SapoApiClient client = new SapoApiClient(builder.build());
+
+        server.expect(requestTo("https://test-store.mysapo.net/admin/orders/555/fulfillments.json"))
+                .andExpect(method(HttpMethod.POST))
+                .andRespond(withSuccess("{\"fulfillment\":{\"id\":\"777\"}}", MediaType.APPLICATION_JSON));
+
+        SapoFulfillmentPushResponse response = client.createFulfillment("555", sampleFulfillmentRequest());
+
+        server.verify();
+        assertEquals("777", response.getFulfillment().getId());
+    }
+
+    @Test
+    void completeFulfillment_PostsToCompleteJsonAndParsesResponse() {
+        RestClient.Builder builder = RestClient.builder().baseUrl("https://test-store.mysapo.net");
+        MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
+        SapoApiClient client = new SapoApiClient(builder.build());
+
+        server.expect(requestTo("https://test-store.mysapo.net/admin/orders/555/fulfillments/777/complete.json"))
+                .andExpect(method(HttpMethod.POST))
+                .andRespond(withSuccess("{\"fulfillment\":{\"id\":\"777\"}}", MediaType.APPLICATION_JSON));
+
+        SapoFulfillmentPushResponse response = client.completeFulfillment("555", "777");
+
+        server.verify();
+        assertEquals("777", response.getFulfillment().getId());
+    }
+
+    @Test
+    void cancelFulfillment_PostsToCancelJsonAndParsesResponse() {
+        RestClient.Builder builder = RestClient.builder().baseUrl("https://test-store.mysapo.net");
+        MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
+        SapoApiClient client = new SapoApiClient(builder.build());
+
+        server.expect(requestTo("https://test-store.mysapo.net/admin/orders/555/fulfillments/777/cancel.json"))
+                .andExpect(method(HttpMethod.POST))
+                .andRespond(withSuccess("{\"fulfillment\":{\"id\":\"777\"}}", MediaType.APPLICATION_JSON));
+
+        SapoFulfillmentPushResponse response = client.cancelFulfillment("555", "777");
+
+        server.verify();
+        assertEquals("777", response.getFulfillment().getId());
     }
 }
