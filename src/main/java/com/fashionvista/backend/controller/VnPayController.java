@@ -11,6 +11,7 @@ import com.fashionvista.backend.repository.PaymentRepository;
 import com.fashionvista.backend.service.LoyaltyService;
 import com.fashionvista.backend.service.OrderService;
 import com.fashionvista.backend.service.VnPayService;
+import com.fashionvista.backend.util.TransactionUtils;
 import java.net.URI;
 import java.util.HashMap;
 import java.util.Map;
@@ -127,6 +128,7 @@ public class VnPayController {
 
         String responseCode = params.get("vnp_ResponseCode");
         boolean success = "00".equals(responseCode);
+        boolean wasAlreadyPaid = payment.getPaymentStatus() == PaymentStatus.PAID;
 
         if (success) {
             order.setPaymentStatus(PaymentStatus.PAID);
@@ -147,9 +149,11 @@ public class VnPayController {
         orderRepository.save(order);
         paymentRepository.save(payment);
 
-        // Push payment transaction to Sapo ledger
-        if (success) {
-            sapoLedgerSyncService.pushPaymentTransaction(payment.getId());
+        // Push payment transaction to Sapo ledger (chỉ khi thực sự chuyển sang PAID lần đầu,
+        // tránh double-push do VNPay gọi cả handleReturn và handleIpn cho cùng một giao dịch)
+        if (success && !wasAlreadyPaid) {
+            Long paymentId = payment.getId();
+            TransactionUtils.afterCommitOrNow(() -> sapoLedgerSyncService.pushPaymentTransaction(paymentId));
         }
 
         // Nếu thanh toán VNPay thành công thì decrease stock và tích điểm

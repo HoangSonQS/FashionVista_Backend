@@ -38,6 +38,7 @@ import java.util.stream.Collectors;
 import com.fashionvista.backend.service.AdminOrderService;
 import com.fashionvista.backend.service.EmailService;
 import com.fashionvista.backend.service.LoyaltyService;
+import com.fashionvista.backend.util.TransactionUtils;
 import jakarta.persistence.criteria.Predicate;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -501,7 +502,8 @@ public class AdminOrderServiceImpl implements AdminOrderService {
         paymentRepository.save(payment);
         orderRepository.save(order);
 
-        sapoLedgerSyncService.pushRefundTransaction(refund.getId());
+        Long refundId = refund.getId();
+        TransactionUtils.afterCommitOrNow(() -> sapoLedgerSyncService.pushRefundTransaction(refundId));
 
         // Ghi log
         recordHistory(order, "refund", 

@@ -15,6 +15,7 @@ import com.fashionvista.backend.repository.AddressRepository;
 import com.fashionvista.backend.repository.OrderRepository;
 import com.fashionvista.backend.service.AdminOrderService;
 import com.fashionvista.backend.service.ShippingService;
+import com.fashionvista.backend.util.TransactionUtils;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.Locale;
@@ -27,8 +28,6 @@ import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.transaction.support.TransactionSynchronization;
-import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.util.StringUtils;
 import org.springframework.web.client.RestTemplate;
 
@@ -171,16 +170,7 @@ public class ShippingServiceImpl implements ShippingService {
     }
 
     private void afterCommitOrNow(Runnable action) {
-        if (TransactionSynchronizationManager.isSynchronizationActive()) {
-            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
-                @Override
-                public void afterCommit() {
-                    action.run();
-                }
-            });
-        } else {
-            action.run();
-        }
+        TransactionUtils.afterCommitOrNow(action);
     }
 
     private Integer resolveServiceId(String service) {

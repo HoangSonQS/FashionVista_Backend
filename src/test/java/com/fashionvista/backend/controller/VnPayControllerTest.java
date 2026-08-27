@@ -1,6 +1,7 @@
 package com.fashionvista.backend.controller;
 
-import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -69,5 +70,43 @@ class VnPayControllerTest {
         vnPayController.handleIpn(params);
 
         verify(sapoLedgerSyncService).pushPaymentTransaction(5L);
+    }
+
+    @Test
+    void processPaymentResult_AlreadyPaid_DoesNotPushSapoTransaction() {
+        Order order = Order.builder().id(1L).orderNumber("ORD-1").build();
+        Payment payment = Payment.builder().id(5L).order(order).paymentMethod(PaymentMethod.VNPAY)
+                .paymentStatus(PaymentStatus.PAID).amount(BigDecimal.TEN).build();
+        when(vnPayService.validateSignature(org.mockito.ArgumentMatchers.anyMap())).thenReturn(true);
+        when(orderRepository.findByOrderNumber("ORD-1")).thenReturn(Optional.of(order));
+        when(paymentRepository.findByOrder(order)).thenReturn(Optional.of(payment));
+
+        Map<String, String> params = new HashMap<>();
+        params.put("vnp_TxnRef", "ORD-1_1234567890");
+        params.put("vnp_ResponseCode", "00");
+        params.put("vnp_TransactionNo", "999");
+
+        vnPayController.handleIpn(params);
+
+        verify(sapoLedgerSyncService, never()).pushPaymentTransaction(any());
+    }
+
+    @Test
+    void processPaymentResult_FailedResponse_DoesNotPushSapoTransaction() {
+        Order order = Order.builder().id(1L).orderNumber("ORD-1").build();
+        Payment payment = Payment.builder().id(5L).order(order).paymentMethod(PaymentMethod.VNPAY)
+                .paymentStatus(PaymentStatus.PENDING).amount(BigDecimal.TEN).build();
+        when(vnPayService.validateSignature(org.mockito.ArgumentMatchers.anyMap())).thenReturn(true);
+        when(orderRepository.findByOrderNumber("ORD-1")).thenReturn(Optional.of(order));
+        when(paymentRepository.findByOrder(order)).thenReturn(Optional.of(payment));
+
+        Map<String, String> params = new HashMap<>();
+        params.put("vnp_TxnRef", "ORD-1_1234567890");
+        params.put("vnp_ResponseCode", "24");
+        params.put("vnp_TransactionNo", "999");
+
+        vnPayController.handleIpn(params);
+
+        verify(sapoLedgerSyncService, never()).pushPaymentTransaction(any());
     }
 }

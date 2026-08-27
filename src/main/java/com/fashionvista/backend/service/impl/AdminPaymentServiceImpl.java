@@ -10,6 +10,7 @@ import com.fashionvista.backend.integration.sapo.service.SapoLedgerSyncService;
 import com.fashionvista.backend.repository.PaymentRepository;
 import com.fashionvista.backend.repository.OrderRepository;
 import com.fashionvista.backend.service.AdminPaymentService;
+import com.fashionvista.backend.util.TransactionUtils;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
@@ -82,6 +83,7 @@ public class AdminPaymentServiceImpl implements AdminPaymentService {
             throw new IllegalArgumentException("Đơn hàng COD chỉ có thể được đánh dấu đã thanh toán khi trạng thái đơn hàng là 'Đã giao'.");
         }
         
+        PaymentStatus previousStatus = payment.getPaymentStatus();
         payment.setPaymentStatus(paymentStatus);
         Payment saved = paymentRepository.save(payment);
 
@@ -89,8 +91,9 @@ public class AdminPaymentServiceImpl implements AdminPaymentService {
         order.setPaymentStatus(paymentStatus);
         orderRepository.save(order);
 
-        if (paymentStatus == PaymentStatus.PAID) {
-            sapoLedgerSyncService.pushPaymentTransaction(saved.getId());
+        if (paymentStatus == PaymentStatus.PAID && previousStatus != PaymentStatus.PAID) {
+            Long paymentId = saved.getId();
+            TransactionUtils.afterCommitOrNow(() -> sapoLedgerSyncService.pushPaymentTransaction(paymentId));
         }
 
         return toAdminPaymentResponse(saved);
@@ -114,7 +117,8 @@ public class AdminPaymentServiceImpl implements AdminPaymentService {
                 payment.setPaymentStatus(PaymentStatus.PAID);
                 paymentRepository.save(payment);
 
-                sapoLedgerSyncService.pushPaymentTransaction(payment.getId());
+                Long paymentId = payment.getId();
+                TransactionUtils.afterCommitOrNow(() -> sapoLedgerSyncService.pushPaymentTransaction(paymentId));
 
                 // Cập nhật order payment status
                 order.setPaymentStatus(PaymentStatus.PAID);
@@ -136,7 +140,8 @@ public class AdminPaymentServiceImpl implements AdminPaymentService {
                 payment.setPaymentStatus(PaymentStatus.PAID);
                 paymentRepository.save(payment);
 
-                sapoLedgerSyncService.pushPaymentTransaction(payment.getId());
+                Long paymentId = payment.getId();
+                TransactionUtils.afterCommitOrNow(() -> sapoLedgerSyncService.pushPaymentTransaction(paymentId));
 
                 count++;
             }

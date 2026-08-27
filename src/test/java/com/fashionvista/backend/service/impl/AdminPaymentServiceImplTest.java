@@ -1,7 +1,6 @@
 package com.fashionvista.backend.service.impl;
 
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -50,6 +49,19 @@ class AdminPaymentServiceImplTest {
         adminPaymentService.updatePaymentStatus(7L, PaymentStatus.PAID);
 
         verify(sapoLedgerSyncService).pushPaymentTransaction(7L);
+    }
+
+    @Test
+    void updatePaymentStatus_AlreadyPaid_DoesNotPushSapoTransactionAgain() {
+        Order order = Order.builder().id(1L).status(OrderStatus.DELIVERED).build();
+        Payment payment = Payment.builder().id(7L).order(order).paymentMethod(PaymentMethod.BANK_TRANSFER)
+                .paymentStatus(PaymentStatus.PAID).amount(BigDecimal.TEN).build();
+        when(paymentRepository.findById(7L)).thenReturn(Optional.of(payment));
+        when(paymentRepository.save(any(Payment.class))).thenReturn(payment);
+
+        adminPaymentService.updatePaymentStatus(7L, PaymentStatus.PAID);
+
+        verify(sapoLedgerSyncService, never()).pushPaymentTransaction(any());
     }
 
     @Test

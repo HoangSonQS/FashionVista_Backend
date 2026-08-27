@@ -62,6 +62,11 @@ public class SapoLedgerSyncService {
     }
 
     private void doPushPayment(Payment payment) {
+        if (payment.getSapoTransactionId() != null) {
+            log.info("Sapo ledger sync skipped: payment {} already synced as Sapo transaction {}",
+                    payment.getId(), payment.getSapoTransactionId());
+            return;
+        }
         String sapoOrderId = payment.getOrder().getSapoOrderId();
         if (sapoOrderId == null) {
             log.warn("Sapo ledger sync skipped: order {} for payment {} has no Sapo order id",
@@ -70,13 +75,22 @@ public class SapoLedgerSyncService {
         }
         try {
             SapoTransactionResponse response = sapoApiClient.createTransaction(sapoOrderId, buildPaymentRequest(payment));
+            if (response == null || response.getTransaction() == null || response.getTransaction().getId() == null) {
+                applyPaymentFailure(payment, "Sapo trả về response rỗng hoặc thiếu transaction id", null);
+                return;
+            }
             applyPaymentSuccess(payment, response.getTransaction().getId());
         } catch (RuntimeException e) {
-            applyPaymentFailure(payment, e.getMessage());
+            applyPaymentFailure(payment, e.getMessage(), e);
         }
     }
 
     private void doPushRefund(Refund refund) {
+        if (refund.getSapoTransactionId() != null) {
+            log.info("Sapo ledger sync skipped: refund {} already synced as Sapo transaction {}",
+                    refund.getId(), refund.getSapoTransactionId());
+            return;
+        }
         String sapoOrderId = refund.getOrder().getSapoOrderId();
         if (sapoOrderId == null) {
             log.warn("Sapo ledger sync skipped: order {} for refund {} has no Sapo order id",
@@ -85,9 +99,13 @@ public class SapoLedgerSyncService {
         }
         try {
             SapoTransactionResponse response = sapoApiClient.createTransaction(sapoOrderId, buildRefundRequest(refund));
+            if (response == null || response.getTransaction() == null || response.getTransaction().getId() == null) {
+                applyRefundFailure(refund, "Sapo trả về response rỗng hoặc thiếu transaction id", null);
+                return;
+            }
             applyRefundSuccess(refund, response.getTransaction().getId());
         } catch (RuntimeException e) {
-            applyRefundFailure(refund, e.getMessage());
+            applyRefundFailure(refund, e.getMessage(), e);
         }
     }
 
@@ -130,11 +148,11 @@ public class SapoLedgerSyncService {
         paymentRepository.save(payment);
     }
 
-    private void applyPaymentFailure(Payment payment, String errorMessage) {
+    private void applyPaymentFailure(Payment payment, String errorMessage, Exception cause) {
         payment.setSapoSyncStatus(SapoSyncStatus.FAILED);
         payment.setSapoSyncError(truncate(errorMessage));
         paymentRepository.save(payment);
-        log.error("Sapo ledger sync failed for payment {}: {}", payment.getId(), errorMessage);
+        log.error("Sapo ledger sync failed for payment {}: {}", payment.getId(), errorMessage, cause);
     }
 
     private void applyRefundSuccess(Refund refund, String sapoTransactionId) {
@@ -145,11 +163,11 @@ public class SapoLedgerSyncService {
         refundRepository.save(refund);
     }
 
-    private void applyRefundFailure(Refund refund, String errorMessage) {
+    private void applyRefundFailure(Refund refund, String errorMessage, Exception cause) {
         refund.setSapoSyncStatus(SapoSyncStatus.FAILED);
         refund.setSapoSyncError(truncate(errorMessage));
         refundRepository.save(refund);
-        log.error("Sapo ledger sync failed for refund {}: {}", refund.getId(), errorMessage);
+        log.error("Sapo ledger sync failed for refund {}: {}", refund.getId(), errorMessage, cause);
     }
 
     private String truncate(String message) {
