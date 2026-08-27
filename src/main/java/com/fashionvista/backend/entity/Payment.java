@@ -58,6 +58,19 @@ public class Payment {
     @Builder.Default
     private BigDecimal refundAmount = BigDecimal.ZERO; // Tổng số tiền đã hoàn
 
+    @Column(name = "sapo_transaction_id", length = 64)
+    private String sapoTransactionId;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "sapo_sync_status")
+    private SapoSyncStatus sapoSyncStatus;
+
+    @Column(name = "sapo_sync_error", length = 500)
+    private String sapoSyncError;
+
+    @Column(name = "sapo_synced_at")
+    private LocalDateTime sapoSyncedAt;
+
     @Column(nullable = false, updatable = false)
     private LocalDateTime createdAt;
 
