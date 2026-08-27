@@ -6,6 +6,7 @@ import com.fashionvista.backend.entity.OrderStatus;
 import com.fashionvista.backend.entity.Payment;
 import com.fashionvista.backend.entity.PaymentMethod;
 import com.fashionvista.backend.entity.PaymentStatus;
+import com.fashionvista.backend.integration.sapo.service.SapoLedgerSyncService;
 import com.fashionvista.backend.repository.PaymentRepository;
 import com.fashionvista.backend.repository.OrderRepository;
 import com.fashionvista.backend.service.AdminPaymentService;
@@ -24,6 +25,7 @@ public class AdminPaymentServiceImpl implements AdminPaymentService {
 
     private final PaymentRepository paymentRepository;
     private final OrderRepository orderRepository;
+    private final SapoLedgerSyncService sapoLedgerSyncService;
 
     @Override
     @Transactional(readOnly = true)
@@ -82,11 +84,15 @@ public class AdminPaymentServiceImpl implements AdminPaymentService {
         
         payment.setPaymentStatus(paymentStatus);
         Payment saved = paymentRepository.save(payment);
-        
+
         // Đồng bộ paymentStatus với order
         order.setPaymentStatus(paymentStatus);
         orderRepository.save(order);
-        
+
+        if (paymentStatus == PaymentStatus.PAID) {
+            sapoLedgerSyncService.pushPaymentTransaction(saved.getId());
+        }
+
         return toAdminPaymentResponse(saved);
     }
 
@@ -107,11 +113,13 @@ public class AdminPaymentServiceImpl implements AdminPaymentService {
                 // Cập nhật payment status
                 payment.setPaymentStatus(PaymentStatus.PAID);
                 paymentRepository.save(payment);
-                
+
+                sapoLedgerSyncService.pushPaymentTransaction(payment.getId());
+
                 // Cập nhật order payment status
                 order.setPaymentStatus(PaymentStatus.PAID);
                 orderRepository.save(order);
-                
+
                 count++;
             }
         }
@@ -121,12 +129,15 @@ public class AdminPaymentServiceImpl implements AdminPaymentService {
             PaymentMethod.COD,
             PaymentStatus.PAID
         );
-        
+
         for (Order order : ordersWithPaidStatus) {
             Payment payment = paymentRepository.findByOrder(order).orElse(null);
             if (payment != null && payment.getPaymentStatus() == PaymentStatus.PENDING) {
                 payment.setPaymentStatus(PaymentStatus.PAID);
                 paymentRepository.save(payment);
+
+                sapoLedgerSyncService.pushPaymentTransaction(payment.getId());
+
                 count++;
             }
         }
