@@ -7,6 +7,8 @@ import com.fashionvista.backend.integration.sapo.dto.SapoOrderPushRequest;
 import com.fashionvista.backend.integration.sapo.dto.SapoOrderPushResponse;
 import com.fashionvista.backend.integration.sapo.dto.SapoProductPushRequest;
 import com.fashionvista.backend.integration.sapo.dto.SapoProductPushResponse;
+import com.fashionvista.backend.integration.sapo.dto.SapoTransactionRequest;
+import com.fashionvista.backend.integration.sapo.dto.SapoTransactionResponse;
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -99,5 +101,13 @@ public class SapoApiClient {
                 .uri("/admin/orders/{orderId}/fulfillments/{fulfillmentId}/cancel.json", sapoOrderId, sapoFulfillmentId)
                 .retrieve()
                 .body(SapoFulfillmentPushResponse.class);
+    }
+
+    public SapoTransactionResponse createTransaction(String sapoOrderId, SapoTransactionRequest request) {
+        return restClient.post()
+                .uri("/admin/orders/{orderId}/transactions.json", sapoOrderId)
+                .body(request)
+                .retrieve()
+                .body(SapoTransactionResponse.class);
     }
 }

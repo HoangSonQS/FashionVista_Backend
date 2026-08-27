@@ -9,6 +9,9 @@ import com.fashionvista.backend.integration.sapo.dto.SapoFulfillmentPushRequest;
 import com.fashionvista.backend.integration.sapo.dto.SapoFulfillmentPushResponse;
 import com.fashionvista.backend.integration.sapo.dto.SapoProductPushRequest;
 import com.fashionvista.backend.integration.sapo.dto.SapoProductPushResponse;
+import com.fashionvista.backend.integration.sapo.dto.SapoTransactionRequest;
+import com.fashionvista.backend.integration.sapo.dto.SapoTransactionResponse;
+import java.math.BigDecimal;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpMethod;
@@ -39,6 +42,17 @@ class SapoApiClientTest {
                 .notifyCustomer(false)
                 .build();
         return SapoFulfillmentPushRequest.builder().fulfillment(fulfillment).build();
+    }
+
+    private SapoTransactionRequest sampleTransactionRequest() {
+        SapoTransactionRequest.Transaction transaction = SapoTransactionRequest.Transaction.builder()
+                .amount(new BigDecimal("150000"))
+                .kind("sale")
+                .gateway("VNPay")
+                .currency("VND")
+                .status("success")
+                .build();
+        return SapoTransactionRequest.builder().transaction(transaction).build();
     }
 
     @Test
@@ -124,5 +138,21 @@ class SapoApiClientTest {
 
         server.verify();
         assertEquals("777", response.getFulfillment().getId());
+    }
+
+    @Test
+    void createTransaction_PostsToOrderTransactionsJsonAndParsesResponse() {
+        RestClient.Builder builder = RestClient.builder().baseUrl("https://test-store.mysapo.net");
+        MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
+        SapoApiClient client = new SapoApiClient(builder.build());
+
+        server.expect(requestTo("https://test-store.mysapo.net/admin/orders/555/transactions.json"))
+                .andExpect(method(HttpMethod.POST))
+                .andRespond(withSuccess("{\"transaction\":{\"id\":\"321\"}}", MediaType.APPLICATION_JSON));
+
+        SapoTransactionResponse response = client.createTransaction("555", sampleTransactionRequest());
+
+        server.verify();
+        assertEquals("321", response.getTransaction().getId());
     }
 }
