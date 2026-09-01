@@ -6,6 +6,7 @@ import com.fashionvista.backend.entity.SyncDiscrepancy;
 import com.fashionvista.backend.entity.SyncDomain;
 import com.fashionvista.backend.integration.sapo.service.SapoInventorySyncService;
 import com.fashionvista.backend.integration.sapo.service.SapoOrderSyncService;
+import com.fashionvista.backend.integration.sapo.service.SapoVoucherSyncService;
 import com.fashionvista.backend.integration.sapo.synchealth.SyncDiscrepancyService;
 import com.fashionvista.backend.integration.sapo.synchealth.SyncHealthScheduler;
 import jakarta.validation.Valid;
@@ -35,6 +36,7 @@ public class AdminSyncHealthController {
     private final SyncHealthScheduler syncHealthScheduler;
     private final SapoInventorySyncService sapoInventorySyncService;
     private final SapoOrderSyncService sapoOrderSyncService;
+    private final SapoVoucherSyncService sapoVoucherSyncService;
 
     @GetMapping("/discrepancies")
     public ResponseEntity<Page<SyncDiscrepancyResponse>> getDiscrepancies(
@@ -59,6 +61,9 @@ public class AdminSyncHealthController {
         } else if (discrepancy.getDomain() == SyncDomain.ORDER) {
             sapoOrderSyncService.pushOrder(discrepancy.getEntityId());
             syncDiscrepancyService.resolve(discrepancy);
+        } else if (discrepancy.getDomain() == SyncDomain.VOUCHER) {
+            sapoVoucherSyncService.pushVoucher(discrepancy.getEntityId());
+            syncDiscrepancyService.resolve(discrepancy);
         } else {
             throw new IllegalArgumentException("Domain không hỗ trợ push-to-sapo.");
         }
@@ -70,11 +75,14 @@ public class AdminSyncHealthController {
     public ResponseEntity<Void> pullFromSapo(@PathVariable Long id) {
         SyncDiscrepancy discrepancy = syncDiscrepancyService.findByIdOrThrow(id);
 
-        if (discrepancy.getDomain() != SyncDomain.INVENTORY) {
-            throw new IllegalArgumentException("Chỉ domain INVENTORY hỗ trợ pull-from-sapo.");
+        boolean success;
+        if (discrepancy.getDomain() == SyncDomain.INVENTORY) {
+            success = sapoInventorySyncService.pullStock(discrepancy.getEntityId());
+        } else if (discrepancy.getDomain() == SyncDomain.VOUCHER) {
+            success = sapoVoucherSyncService.pullVoucher(discrepancy.getEntityId());
+        } else {
+            throw new IllegalArgumentException("Domain không hỗ trợ pull-from-sapo.");
         }
-
-        boolean success = sapoInventorySyncService.pullStock(discrepancy.getEntityId());
         if (success) {
             syncDiscrepancyService.resolve(discrepancy);
         }

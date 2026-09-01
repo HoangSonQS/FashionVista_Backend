@@ -14,6 +14,7 @@ import com.fashionvista.backend.entity.SyncDiscrepancy;
 import com.fashionvista.backend.entity.SyncDomain;
 import com.fashionvista.backend.integration.sapo.service.SapoInventorySyncService;
 import com.fashionvista.backend.integration.sapo.service.SapoOrderSyncService;
+import com.fashionvista.backend.integration.sapo.service.SapoVoucherSyncService;
 import com.fashionvista.backend.integration.sapo.synchealth.SyncDiscrepancyService;
 import com.fashionvista.backend.integration.sapo.synchealth.SyncHealthScheduler;
 import org.junit.jupiter.api.BeforeEach;
@@ -26,6 +27,7 @@ class AdminSyncHealthControllerTest {
     private SyncHealthScheduler syncHealthScheduler;
     private SapoInventorySyncService sapoInventorySyncService;
     private SapoOrderSyncService sapoOrderSyncService;
+    private SapoVoucherSyncService sapoVoucherSyncService;
     private AdminSyncHealthController controller;
 
     @BeforeEach
@@ -34,8 +36,10 @@ class AdminSyncHealthControllerTest {
         syncHealthScheduler = mock(SyncHealthScheduler.class);
         sapoInventorySyncService = mock(SapoInventorySyncService.class);
         sapoOrderSyncService = mock(SapoOrderSyncService.class);
+        sapoVoucherSyncService = mock(SapoVoucherSyncService.class);
         controller = new AdminSyncHealthController(
-                syncDiscrepancyService, syncHealthScheduler, sapoInventorySyncService, sapoOrderSyncService);
+                syncDiscrepancyService, syncHealthScheduler, sapoInventorySyncService, sapoOrderSyncService,
+                sapoVoucherSyncService);
     }
 
     @Test
@@ -116,5 +120,53 @@ class AdminSyncHealthControllerTest {
         controller.runNow();
 
         verify(syncHealthScheduler).runNow();
+    }
+
+    @Test
+    void pushToSapo_VoucherDomain_AlwaysResolvesAfterFireAndForgetPush() {
+        SyncDiscrepancy discrepancy = SyncDiscrepancy.builder()
+                .id(3L).domain(SyncDomain.VOUCHER).entityId(20L).discrepancyType(DiscrepancyType.SYNC_FAILED).build();
+        when(syncDiscrepancyService.findByIdOrThrow(3L)).thenReturn(discrepancy);
+
+        controller.pushToSapo(3L);
+
+        verify(sapoVoucherSyncService).pushVoucher(20L);
+        verify(syncDiscrepancyService).resolve(discrepancy);
+    }
+
+    @Test
+    void pullFromSapo_VoucherDomainSuccess_ResolvesDiscrepancy() {
+        SyncDiscrepancy discrepancy = SyncDiscrepancy.builder()
+                .id(3L).domain(SyncDomain.VOUCHER).entityId(20L).discrepancyType(DiscrepancyType.VALUE_MISMATCH).build();
+        when(syncDiscrepancyService.findByIdOrThrow(3L)).thenReturn(discrepancy);
+        when(sapoVoucherSyncService.pullVoucher(20L)).thenReturn(true);
+
+        controller.pullFromSapo(3L);
+
+        verify(syncDiscrepancyService).resolve(discrepancy);
+    }
+
+    @Test
+    void pullFromSapo_VoucherDomainFailure_DoesNotResolveDiscrepancy() {
+        SyncDiscrepancy discrepancy = SyncDiscrepancy.builder()
+                .id(3L).domain(SyncDomain.VOUCHER).entityId(20L).discrepancyType(DiscrepancyType.VALUE_MISMATCH).build();
+        when(syncDiscrepancyService.findByIdOrThrow(3L)).thenReturn(discrepancy);
+        when(sapoVoucherSyncService.pullVoucher(20L)).thenReturn(false);
+
+        controller.pullFromSapo(3L);
+
+        verify(syncDiscrepancyService, never()).resolve(any(SyncDiscrepancy.class));
+    }
+
+    @Test
+    void linkSapoOrder_VoucherDomain_ThrowsIllegalArgumentException() {
+        SyncDiscrepancy discrepancy = SyncDiscrepancy.builder()
+                .id(3L).domain(SyncDomain.VOUCHER).entityId(20L).discrepancyType(DiscrepancyType.SYNC_FAILED).build();
+        when(syncDiscrepancyService.findByIdOrThrow(3L)).thenReturn(discrepancy);
+        LinkSapoOrderRequest request = new LinkSapoOrderRequest();
+        request.setSapoOrderId("sapo-order-9");
+
+        org.junit.jupiter.api.Assertions.assertThrows(IllegalArgumentException.class,
+                () -> controller.linkSapoOrder(3L, request));
     }
 }

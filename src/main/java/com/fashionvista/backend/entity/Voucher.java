@@ -100,6 +100,26 @@ public class Voucher {
     @Column(name = "expires_at")
     private LocalDateTime expiresAt;
 
+    /**
+     * ID của Price Rule tương ứng bên Sapo (BIGINT). Null nếu chưa từng đẩy lên Sapo.
+     */
+    @Column(name = "sapo_price_rule_id")
+    private Long sapoPriceRuleId;
+
+    /**
+     * ID của Discount Code tương ứng bên Sapo (BIGINT). Null nếu chưa từng đẩy lên Sapo.
+     */
+    @Column(name = "sapo_discount_code_id")
+    private Long sapoDiscountCodeId;
+
+    /**
+     * Trạng thái đồng bộ với Sapo.
+     */
+    @Enumerated(EnumType.STRING)
+    @Column(name = "sapo_sync_status", nullable = false, columnDefinition = "varchar(20) not null default 'PENDING'")
+    @Builder.Default
+    private SapoSyncStatus sapoSyncStatus = SapoSyncStatus.PENDING;
+
     @Column(nullable = false, updatable = false)
     private LocalDateTime createdAt;
 
