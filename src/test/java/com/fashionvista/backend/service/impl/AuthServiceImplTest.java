@@ -5,6 +5,7 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -18,6 +19,8 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.security.crypto.password.PasswordEncoder;
 
 import com.fashionvista.backend.dto.AuthResponse;
@@ -26,6 +29,7 @@ import com.fashionvista.backend.dto.RegisterRequest;
 import com.fashionvista.backend.entity.EmailVerificationToken;
 import com.fashionvista.backend.entity.User;
 import com.fashionvista.backend.entity.UserRole;
+import com.fashionvista.backend.integration.sapo.service.SapoCustomerSyncService;
 import com.fashionvista.backend.repository.EmailVerificationTokenRepository;
 import com.fashionvista.backend.repository.PasswordResetTokenRepository;
 import com.fashionvista.backend.repository.RefreshTokenRepository;
@@ -50,6 +54,8 @@ public class AuthServiceImplTest {
     private PasswordResetTokenRepository passwordResetTokenRepository;
     @Mock
     private RefreshTokenRepository refreshTokenRepository;
+    @Mock
+    private SapoCustomerSyncService sapoCustomerSyncService;
 
     @InjectMocks
     private AuthServiceImpl authService;
@@ -101,6 +107,56 @@ public class AuthServiceImplTest {
 
         assertEquals("Email da duoc su dung.", exception.getMessage());
         verify(userRepository, never()).save(any(User.class));
+    }
+
+    @Test
+    void register_NewEmail_TriggersSapoCustomerPush() {
+        RegisterRequest request = new RegisterRequest();
+        request.setEmail("test@example.com");
+        request.setPassword("password");
+        request.setFullName("Test User");
+        request.setPhoneNumber("1234567890");
+
+        when(userRepository.existsByEmail("test@example.com")).thenReturn(false);
+        when(userRepository.existsByPhoneNumber("1234567890")).thenReturn(false);
+        when(passwordEncoder.encode("password")).thenReturn("encodedPassword");
+        when(userRepository.save(any(User.class))).thenReturn(user);
+        when(jwtService.generateToken(user)).thenReturn("jwt-token");
+        when(jwtService.generateRefreshToken()).thenReturn("refresh-token");
+        when(refreshTokenRepository.findByUser(user)).thenReturn(Optional.empty());
+
+        authService.register(request);
+
+        verify(sapoCustomerSyncService).pushCustomer(1L);
+    }
+
+    @Test
+    void register_WithinActiveTransaction_DefersCustomerPushUntilAfterCommit() {
+        RegisterRequest request = new RegisterRequest();
+        request.setEmail("test@example.com");
+        request.setPassword("password");
+        request.setFullName("Test User");
+        request.setPhoneNumber("1234567890");
+
+        when(userRepository.existsByEmail("test@example.com")).thenReturn(false);
+        when(userRepository.existsByPhoneNumber("1234567890")).thenReturn(false);
+        when(passwordEncoder.encode("password")).thenReturn("encodedPassword");
+        when(userRepository.save(any(User.class))).thenReturn(user);
+        when(jwtService.generateToken(user)).thenReturn("jwt-token");
+        when(jwtService.generateRefreshToken()).thenReturn("refresh-token");
+        when(refreshTokenRepository.findByUser(user)).thenReturn(Optional.empty());
+
+        TransactionSynchronizationManager.initSynchronization();
+        try {
+            authService.register(request);
+            verify(sapoCustomerSyncService, never()).pushCustomer(anyLong());
+            for (TransactionSynchronization synchronization : TransactionSynchronizationManager.getSynchronizations()) {
+                synchronization.afterCommit();
+            }
+            verify(sapoCustomerSyncService).pushCustomer(1L);
+        } finally {
+            TransactionSynchronizationManager.clearSynchronization();
+        }
     }
 
     @Test
