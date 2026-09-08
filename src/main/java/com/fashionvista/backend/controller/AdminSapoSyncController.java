@@ -3,6 +3,7 @@ package com.fashionvista.backend.controller;
 import com.fashionvista.backend.entity.Product;
 import com.fashionvista.backend.entity.SapoSyncStatus;
 import com.fashionvista.backend.integration.sapo.dto.SapoMigrationSummary;
+import com.fashionvista.backend.integration.sapo.dto.SapoPendingProductDto;
 import com.fashionvista.backend.integration.sapo.service.SapoProductSyncService;
 import com.fashionvista.backend.repository.ProductRepository;
 import java.util.ArrayList;
@@ -11,6 +12,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -24,6 +26,23 @@ public class AdminSapoSyncController {
 
     private final ProductRepository productRepository;
     private final SapoProductSyncService sapoProductSyncService;
+
+    @GetMapping("/pending")
+    @Transactional(readOnly = true)
+    public ResponseEntity<List<SapoPendingProductDto>> pending() {
+        List<SapoPendingProductDto> pending = productRepository.findBySapoSyncStatusNot(SapoSyncStatus.SYNCED)
+                .stream()
+                .map(product -> SapoPendingProductDto.builder()
+                        .id(product.getId())
+                        .name(product.getName())
+                        .sku(product.getSku())
+                        .sapoSyncStatus(product.getSapoSyncStatus())
+                        .sapoSyncError(product.getSapoSyncError())
+                        .sapoSyncedAt(product.getSapoSyncedAt())
+                        .build())
+                .toList();
+        return ResponseEntity.ok(pending);
+    }
 
     @PostMapping("/{id}/retry-sync")
     @Transactional
