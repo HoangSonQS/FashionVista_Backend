@@ -51,6 +51,8 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 @Service
 @RequiredArgsConstructor
@@ -148,7 +150,7 @@ public class AdminOrderServiceImpl implements AdminOrderService {
         }
 
         if (saved.getStatus() == OrderStatus.CONFIRMED && oldStatus != OrderStatus.CONFIRMED) {
-            sapoOrderSyncService.pushOrder(saved.getId());
+            schedulePushOrderAfterCommit(saved.getId());
         }
 
         // Nếu là đơn COD và lần đầu chuyển sang DELIVERED, tự động cập nhật payment status thành PAID
@@ -291,7 +293,25 @@ public class AdminOrderServiceImpl implements AdminOrderService {
         }
         orderRepository.saveAll(orders);
         for (Long confirmedOrderId : confirmedOrderIds) {
-            sapoOrderSyncService.pushOrder(confirmedOrderId);
+            schedulePushOrderAfterCommit(confirmedOrderId);
+        }
+    }
+
+    /**
+     * pushOrder() là @Async + @Transactional: gọi trực tiếp bên trong một transaction đang mở sẽ khiến
+     * task async đọc dữ liệu chưa commit (thấy status CŨ), rồi save() đè ngược lại thay đổi vừa thực hiện.
+     * Đăng ký chạy sau khi transaction hiện tại commit để tránh race condition này.
+     */
+    private void schedulePushOrderAfterCommit(Long orderId) {
+        if (TransactionSynchronizationManager.isSynchronizationActive()) {
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override
+                public void afterCommit() {
+                    sapoOrderSyncService.pushOrder(orderId);
+                }
+            });
+        } else {
+            sapoOrderSyncService.pushOrder(orderId);
         }
     }
 
