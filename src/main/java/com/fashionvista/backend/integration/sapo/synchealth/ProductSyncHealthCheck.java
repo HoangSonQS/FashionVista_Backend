@@ -11,6 +11,7 @@ import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -20,15 +21,14 @@ import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
-import org.springframework.transaction.annotation.Transactional;
 
 @Component
 @RequiredArgsConstructor
 public class ProductSyncHealthCheck implements SapoSyncHealthCheck {
 
     private static final Logger log = LoggerFactory.getLogger(ProductSyncHealthCheck.class);
-    private static final int PAGE_SIZE = 50;
-    private static final int MAX_PAGES = 500;
+    private static final int PAGE_SIZE = 250;
+    private static final int MAX_PAGES = 50;
     private static final double SANITY_GUARD_THRESHOLD = 0.5;
 
     private final ProductRepository productRepository;
@@ -40,7 +40,6 @@ public class ProductSyncHealthCheck implements SapoSyncHealthCheck {
     }
 
     @Override
-    @Transactional(readOnly = true)
     public List<DiscrepancyCandidate> checkAll() {
         List<Product> localProducts = productRepository.findBySapoProductIdIsNotNull();
         List<SapoProductListResponse.Product> sapoProducts = fetchAllSapoProducts();
@@ -63,15 +62,18 @@ public class ProductSyncHealthCheck implements SapoSyncHealthCheck {
     }
 
     private List<SapoProductListResponse.Product> fetchAllSapoProducts() {
-        long sapoCount = sapoApiClient.countProducts();
-        int totalPages = (int) Math.min(MAX_PAGES, Math.ceil((double) sapoCount / PAGE_SIZE));
         List<SapoProductListResponse.Product> sapoProducts = new ArrayList<>();
-        for (int page = 1; page <= totalPages; page++) {
+        for (int page = 1; page <= MAX_PAGES; page++) {
             SapoProductListResponse response = sapoApiClient.listProducts(page, PAGE_SIZE);
-            if (response != null && response.getProducts() != null) {
-                sapoProducts.addAll(response.getProducts());
+            List<SapoProductListResponse.Product> pageProducts = (response != null && response.getProducts() != null)
+                    ? response.getProducts()
+                    : List.of();
+            sapoProducts.addAll(pageProducts);
+            if (pageProducts.size() < PAGE_SIZE) {
+                return sapoProducts;
             }
         }
+        log.warn("Sapo product catalog scan hit the 50-page safety cap — catalog may be larger than scanned");
         return sapoProducts;
     }
 
@@ -175,7 +177,7 @@ public class ProductSyncHealthCheck implements SapoSyncHealthCheck {
                     Long entityId = Long.parseLong(sapoProduct.getId());
                     candidates.add(new DiscrepancyCandidate(
                             entityId,
-                            sapoProduct.getName(),
+                            sapoProduct.getName() != null ? sapoProduct.getName() : "sapo-" + sapoProduct.getId(),
                             DiscrepancyType.EXCESS_ON_SAPO,
                             "Sản phẩm chỉ tồn tại trên Sapo, không có trong hệ thống nội bộ"));
                 }
@@ -190,6 +192,31 @@ public class ProductSyncHealthCheck implements SapoSyncHealthCheck {
         return candidates;
     }
 
+    private Set<String> candidateSkusFor(Product product) {
+        Set<String> candidateSkus = new LinkedHashSet<>();
+        if (product.getSku() != null) {
+            candidateSkus.add(product.getSku());
+        }
+        product.getVariants().forEach(v -> {
+            if (v.getSku() != null) {
+                candidateSkus.add(v.getSku());
+            }
+        });
+        return candidateSkus;
+    }
+
+    private Set<String> duplicateSapoIdsFor(Product product, Map<String, List<String>> skuToSapoProductIds) {
+        return candidateSkusFor(product).stream()
+                .map(skuToSapoProductIds::get)
+                .filter(ids -> ids != null && ids.size() > 1)
+                .flatMap(List::stream)
+                .collect(Collectors.toCollection(LinkedHashSet::new));
+    }
+
+    private boolean isDuplicateOnSapo(Product product, Map<String, List<String>> skuToSapoProductIds) {
+        return !duplicateSapoIdsFor(product, skuToSapoProductIds).isEmpty();
+    }
+
     private List<DiscrepancyCandidate> checkDuplicateOnSapo(List<Product> localProducts,
             List<SapoProductListResponse.Product> sapoProducts) {
         Map<String, SapoProductListResponse.Product> sapoProductsById = indexById(sapoProducts);
@@ -199,17 +226,17 @@ public class ProductSyncHealthCheck implements SapoSyncHealthCheck {
         for (Product product : localProducts) {
             try {
                 SapoProductListResponse.Product matched = sapoProductsById.get(product.getSapoProductId());
-                if (matched == null || product.getSku() == null) {
+                if (matched == null) {
                     continue;
                 }
-                List<String> sapoProductIdsForSku = skuToSapoProductIds.get(product.getSku());
-                if (sapoProductIdsForSku != null && sapoProductIdsForSku.size() > 1) {
+                Set<String> dupSapoIds = duplicateSapoIdsFor(product, skuToSapoProductIds);
+                if (!dupSapoIds.isEmpty()) {
                     candidates.add(new DiscrepancyCandidate(
                             product.getId(),
                             product.getSku(),
                             DiscrepancyType.DUPLICATE_ON_SAPO,
                             "SKU xuất hiện trên nhiều sản phẩm Sapo (id: "
-                                    + String.join(", ", sapoProductIdsForSku) + ")"));
+                                    + String.join(", ", dupSapoIds) + ")"));
                 }
             } catch (RuntimeException ex) {
                 log.error("Sapo product sync-health DUPLICATE_ON_SAPO check failed for product id={}: {}",
@@ -231,11 +258,8 @@ public class ProductSyncHealthCheck implements SapoSyncHealthCheck {
                 if (matched == null) {
                     continue;
                 }
-                if (product.getSku() != null) {
-                    List<String> idsForSku = skuToSapoProductIds.get(product.getSku());
-                    if (idsForSku != null && idsForSku.size() > 1) {
-                        continue;
-                    }
+                if (isDuplicateOnSapo(product, skuToSapoProductIds)) {
+                    continue;
                 }
 
                 String mismatchDetails = findFieldMismatch(product, matched);
@@ -286,7 +310,7 @@ public class ProductSyncHealthCheck implements SapoSyncHealthCheck {
             BigDecimal effectivePrice = (variant.getPrice() != null
                     && variant.getPrice().compareTo(BigDecimal.ZERO) > 0)
                     ? variant.getPrice()
-                    : variant.getProduct().getPrice();
+                    : product.getPrice();
             if (checkPriceMismatch(effectivePrice, sapoVariant.getPrice())) {
                 return "variant sku=" + variant.getSku() + " local effectivePrice=" + effectivePrice
                         + " vs sapo price='" + sapoVariant.getPrice() + "'";

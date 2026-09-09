@@ -106,8 +106,7 @@ class ProductSyncHealthCheckTest {
         localVariant(missing, "SKU-C-M", "M", "Trang", new BigDecimal("100000"), 10);
 
         when(productRepository.findBySapoProductIdIsNotNull()).thenReturn(List.of(healthyA, healthyB, missing));
-        when(sapoApiClient.countProducts()).thenReturn(2L);
-        when(sapoApiClient.listProducts(1, 50)).thenReturn(
+        when(sapoApiClient.listProducts(1, 250)).thenReturn(
                 listResponse(matchingSapoProduct(healthyA), matchingSapoProduct(healthyB)));
 
         List<DiscrepancyCandidate> candidates = productSyncHealthCheck.checkAll();
@@ -128,8 +127,7 @@ class ProductSyncHealthCheckTest {
                 List.of(sapoVariant("sapo-variant-777", "SKU-UNKNOWN", "M", "Trang", "50000")));
 
         when(productRepository.findBySapoProductIdIsNotNull()).thenReturn(List.of(healthyA, healthyB));
-        when(sapoApiClient.countProducts()).thenReturn(3L);
-        when(sapoApiClient.listProducts(1, 50)).thenReturn(
+        when(sapoApiClient.listProducts(1, 250)).thenReturn(
                 listResponse(matchingSapoProduct(healthyA), matchingSapoProduct(healthyB), excessSapoProduct));
 
         List<DiscrepancyCandidate> candidates = productSyncHealthCheck.checkAll();
@@ -145,17 +143,16 @@ class ProductSyncHealthCheckTest {
         Product healthyA = healthyProduct(1L, "sapo-1", "SKU-A");
         Product healthyB = healthyProduct(2L, "sapo-2", "SKU-B");
         Product duplicateSubject = localProduct(3L, "3", "SKU-C", "San pham SKU-C", new BigDecimal("100000"));
-        localVariant(duplicateSubject, "SKU-C", "M", "Trang", new BigDecimal("100000"), 10);
+        localVariant(duplicateSubject, "SKU-C-M", "M", "Trang", new BigDecimal("100000"), 10);
 
         SapoProductListResponse.Product sapoDup1 = sapoProduct("3", "San pham SKU-C", "2026-01-01T00:00:00",
-                List.of(sapoVariant("v1", "SKU-C", "M", "Trang", "100000")));
+                List.of(sapoVariant("v1", "SKU-C-M", "M", "Trang", "100000")));
         SapoProductListResponse.Product sapoDup2 = sapoProduct("4", "San pham SKU-C ban sao", "2026-01-01T00:00:00",
-                List.of(sapoVariant("v2", "SKU-C", "M", "Trang", "100000")));
+                List.of(sapoVariant("v2", "SKU-C-M", "M", "Trang", "100000")));
 
         when(productRepository.findBySapoProductIdIsNotNull())
                 .thenReturn(List.of(healthyA, healthyB, duplicateSubject));
-        when(sapoApiClient.countProducts()).thenReturn(4L);
-        when(sapoApiClient.listProducts(1, 50)).thenReturn(
+        when(sapoApiClient.listProducts(1, 250)).thenReturn(
                 listResponse(matchingSapoProduct(healthyA), matchingSapoProduct(healthyB), sapoDup1, sapoDup2));
 
         List<DiscrepancyCandidate> candidates = productSyncHealthCheck.checkAll();
@@ -176,8 +173,7 @@ class ProductSyncHealthCheckTest {
                 List.of(sapoVariant("v-b", "SKU-B-M", "M", "Trang", "100000")));
 
         when(productRepository.findBySapoProductIdIsNotNull()).thenReturn(List.of(healthyA, mismatchSubject));
-        when(sapoApiClient.countProducts()).thenReturn(2L);
-        when(sapoApiClient.listProducts(1, 50)).thenReturn(
+        when(sapoApiClient.listProducts(1, 250)).thenReturn(
                 listResponse(matchingSapoProduct(healthyA), sapoMismatch));
 
         List<DiscrepancyCandidate> candidates = productSyncHealthCheck.checkAll();
@@ -194,8 +190,7 @@ class ProductSyncHealthCheckTest {
         Product healthyB = healthyProduct(2L, "sapo-2", "SKU-B");
 
         when(productRepository.findBySapoProductIdIsNotNull()).thenReturn(List.of(healthyA, healthyB));
-        when(sapoApiClient.countProducts()).thenReturn(2L);
-        when(sapoApiClient.listProducts(1, 50)).thenReturn(
+        when(sapoApiClient.listProducts(1, 250)).thenReturn(
                 listResponse(matchingSapoProduct(healthyA), matchingSapoProduct(healthyB)));
 
         List<DiscrepancyCandidate> candidates = productSyncHealthCheck.checkAll();
@@ -212,8 +207,7 @@ class ProductSyncHealthCheckTest {
                 List.of(sapoVariant("v-b", "SKU-B-M", "M", "Trang", "100000")));
 
         when(productRepository.findBySapoProductIdIsNotNull()).thenReturn(List.of(healthyA, subject));
-        when(sapoApiClient.countProducts()).thenReturn(2L);
-        when(sapoApiClient.listProducts(1, 50)).thenReturn(
+        when(sapoApiClient.listProducts(1, 250)).thenReturn(
                 listResponse(matchingSapoProduct(healthyA), sapoSubject));
 
         List<DiscrepancyCandidate> candidates = productSyncHealthCheck.checkAll();
@@ -230,8 +224,7 @@ class ProductSyncHealthCheckTest {
                 List.of(sapoVariant("v-b", "SKU-B-M", "M", "Trang", "150000")));
 
         when(productRepository.findBySapoProductIdIsNotNull()).thenReturn(List.of(healthyA, subject));
-        when(sapoApiClient.countProducts()).thenReturn(2L);
-        when(sapoApiClient.listProducts(1, 50)).thenReturn(
+        when(sapoApiClient.listProducts(1, 250)).thenReturn(
                 listResponse(matchingSapoProduct(healthyA), sapoSubject));
 
         List<DiscrepancyCandidate> candidates = productSyncHealthCheck.checkAll();
@@ -248,8 +241,7 @@ class ProductSyncHealthCheckTest {
                 List.of(sapoVariant("v-b", "SKU-B-M", "M", "Trang", "100000")));
 
         when(productRepository.findBySapoProductIdIsNotNull()).thenReturn(List.of(healthyA, subject));
-        when(sapoApiClient.countProducts()).thenReturn(2L);
-        when(sapoApiClient.listProducts(1, 50)).thenReturn(
+        when(sapoApiClient.listProducts(1, 250)).thenReturn(
                 listResponse(matchingSapoProduct(healthyA), sapoSubject));
 
         List<DiscrepancyCandidate> candidates = productSyncHealthCheck.checkAll();
@@ -266,8 +258,7 @@ class ProductSyncHealthCheckTest {
                 List.of(sapoVariant("v-b", "SKU-B-M", "M", "Trang", "100000")));
 
         when(productRepository.findBySapoProductIdIsNotNull()).thenReturn(List.of(healthyA, subject));
-        when(sapoApiClient.countProducts()).thenReturn(2L);
-        when(sapoApiClient.listProducts(1, 50)).thenReturn(
+        when(sapoApiClient.listProducts(1, 250)).thenReturn(
                 listResponse(matchingSapoProduct(healthyA), sapoSubject));
 
         List<DiscrepancyCandidate> candidates = productSyncHealthCheck.checkAll();
@@ -283,8 +274,7 @@ class ProductSyncHealthCheckTest {
         subject.getVariants().get(0).setCompareAtPrice(new BigDecimal("888888"));
 
         when(productRepository.findBySapoProductIdIsNotNull()).thenReturn(List.of(healthyA, subject));
-        when(sapoApiClient.countProducts()).thenReturn(2L);
-        when(sapoApiClient.listProducts(1, 50)).thenReturn(
+        when(sapoApiClient.listProducts(1, 250)).thenReturn(
                 listResponse(matchingSapoProduct(healthyA), matchingSapoProduct(subject)));
 
         List<DiscrepancyCandidate> candidates = productSyncHealthCheck.checkAll();
@@ -298,7 +288,7 @@ class ProductSyncHealthCheckTest {
         Product healthyB = healthyProduct(2L, "sapo-2", "SKU-B");
 
         when(productRepository.findBySapoProductIdIsNotNull()).thenReturn(List.of(healthyA, healthyB));
-        when(sapoApiClient.countProducts()).thenReturn(0L);
+        when(sapoApiClient.listProducts(1, 250)).thenReturn(listResponse());
 
         List<DiscrepancyCandidate> candidates = productSyncHealthCheck.checkAll();
 
@@ -313,8 +303,7 @@ class ProductSyncHealthCheckTest {
                 List.of(sapoVariant("v2", "SKU-X2", "M", "Trang", "100000")));
 
         when(productRepository.findBySapoProductIdIsNotNull()).thenReturn(List.of());
-        when(sapoApiClient.countProducts()).thenReturn(2L);
-        when(sapoApiClient.listProducts(1, 50)).thenReturn(listResponse(sapoOnly1, sapoOnly2));
+        when(sapoApiClient.listProducts(1, 250)).thenReturn(listResponse(sapoOnly1, sapoOnly2));
 
         List<DiscrepancyCandidate> candidates = productSyncHealthCheck.checkAll();
 
@@ -337,8 +326,7 @@ class ProductSyncHealthCheckTest {
 
         when(productRepository.findBySapoProductIdIsNotNull())
                 .thenReturn(List.of(missingA, missingB, mismatchSubject));
-        when(sapoApiClient.countProducts()).thenReturn(2L);
-        when(sapoApiClient.listProducts(1, 50)).thenReturn(listResponse(sapoMismatch, sapoExcess));
+        when(sapoApiClient.listProducts(1, 250)).thenReturn(listResponse(sapoMismatch, sapoExcess));
 
         List<DiscrepancyCandidate> candidates = productSyncHealthCheck.checkAll();
 
@@ -348,16 +336,7 @@ class ProductSyncHealthCheckTest {
     @Test
     void checkAll_ListProductsPageFailsAfterRetriesExhausted_PropagatesException() {
         when(productRepository.findBySapoProductIdIsNotNull()).thenReturn(List.of());
-        when(sapoApiClient.countProducts()).thenReturn(10L);
-        when(sapoApiClient.listProducts(1, 50)).thenThrow(new RuntimeException("Sapo unreachable"));
-
-        assertThrows(RuntimeException.class, () -> productSyncHealthCheck.checkAll());
-    }
-
-    @Test
-    void checkAll_CountEndpointFailsAfterRetriesExhausted_PropagatesException() {
-        when(productRepository.findBySapoProductIdIsNotNull()).thenReturn(List.of());
-        when(sapoApiClient.countProducts()).thenThrow(new RuntimeException("Sapo unreachable"));
+        when(sapoApiClient.listProducts(1, 250)).thenThrow(new RuntimeException("Sapo unreachable"));
 
         assertThrows(RuntimeException.class, () -> productSyncHealthCheck.checkAll());
     }
@@ -380,8 +359,7 @@ class ProductSyncHealthCheckTest {
                 List.of(sapoVariant("v-b", "SKU-B-M", "M", "Trang", "100000")));
 
         when(productRepository.findBySapoProductIdIsNotNull()).thenReturn(List.of(healthyA, brokenProduct));
-        when(sapoApiClient.countProducts()).thenReturn(2L);
-        when(sapoApiClient.listProducts(1, 50)).thenReturn(
+        when(sapoApiClient.listProducts(1, 250)).thenReturn(
                 listResponse(matchingSapoProduct(healthyA), sapoBroken));
 
         List<DiscrepancyCandidate> candidates = productSyncHealthCheck.checkAll();
@@ -400,8 +378,7 @@ class ProductSyncHealthCheckTest {
                 List.of(sapoVariant("v-n", "SKU-UNKNOWN-2", "M", "Trang", "60000")));
 
         when(productRepository.findBySapoProductIdIsNotNull()).thenReturn(List.of(healthyA));
-        when(sapoApiClient.countProducts()).thenReturn(3L);
-        when(sapoApiClient.listProducts(1, 50)).thenReturn(
+        when(sapoApiClient.listProducts(1, 250)).thenReturn(
                 listResponse(matchingSapoProduct(healthyA), excessNonNumeric, excessNumeric));
 
         List<DiscrepancyCandidate> candidates = productSyncHealthCheck.checkAll();
