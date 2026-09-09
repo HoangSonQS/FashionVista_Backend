@@ -1,8 +1,11 @@
 package com.fashionvista.backend.integration.sapo.client;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.method;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.requestTo;
+import static org.springframework.test.web.client.response.MockRestResponseCreators.withServerError;
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withSuccess;
 
 import com.fashionvista.backend.integration.sapo.dto.SapoDiscountCodeRequest;
@@ -11,6 +14,7 @@ import com.fashionvista.backend.integration.sapo.dto.SapoFulfillmentPushRequest;
 import com.fashionvista.backend.integration.sapo.dto.SapoFulfillmentPushResponse;
 import com.fashionvista.backend.integration.sapo.dto.SapoPriceRuleRequest;
 import com.fashionvista.backend.integration.sapo.dto.SapoPriceRuleResponse;
+import com.fashionvista.backend.integration.sapo.dto.SapoProductListResponse;
 import com.fashionvista.backend.integration.sapo.dto.SapoProductPushRequest;
 import com.fashionvista.backend.integration.sapo.dto.SapoProductPushResponse;
 import com.fashionvista.backend.integration.sapo.dto.SapoTransactionRequest;
@@ -22,6 +26,7 @@ import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.client.MockRestServiceServer;
 import org.springframework.web.client.RestClient;
+import org.springframework.web.client.RestClientException;
 
 class SapoApiClientTest {
 
@@ -271,5 +276,70 @@ class SapoApiClientTest {
 
         server.verify();
         assertEquals(701L, response.getDiscountCode().getId());
+    }
+
+    @Test
+    void listProducts_SucceedsOnThirdAttempt_ReturnsResult() {
+        RestClient.Builder builder = RestClient.builder().baseUrl("https://test-store.mysapo.net");
+        MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
+        SapoApiClient client = new SapoApiClient(builder.build());
+
+        server.expect(requestTo("https://test-store.mysapo.net/admin/products.json?page=1&limit=50"))
+                .andExpect(method(HttpMethod.GET))
+                .andRespond(withServerError());
+        server.expect(requestTo("https://test-store.mysapo.net/admin/products.json?page=1&limit=50"))
+                .andExpect(method(HttpMethod.GET))
+                .andRespond(withServerError());
+        server.expect(requestTo("https://test-store.mysapo.net/admin/products.json?page=1&limit=50"))
+                .andExpect(method(HttpMethod.GET))
+                .andRespond(withSuccess(
+                        "{\"products\":[{\"id\":\"111\",\"name\":\"Ao thun\",\"variants\":[]}]}",
+                        MediaType.APPLICATION_JSON));
+
+        SapoProductListResponse response = client.listProducts(1, 50);
+
+        server.verify();
+        assertEquals(1, response.getProducts().size());
+        assertEquals("111", response.getProducts().get(0).getId());
+    }
+
+    @Test
+    void listProducts_FailsAllThreeAttempts_ThrowsLastException() {
+        RestClient.Builder builder = RestClient.builder().baseUrl("https://test-store.mysapo.net");
+        MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
+        SapoApiClient client = new SapoApiClient(builder.build());
+
+        server.expect(requestTo("https://test-store.mysapo.net/admin/products.json?page=1&limit=50"))
+                .andExpect(method(HttpMethod.GET))
+                .andRespond(withServerError());
+        server.expect(requestTo("https://test-store.mysapo.net/admin/products.json?page=1&limit=50"))
+                .andExpect(method(HttpMethod.GET))
+                .andRespond(withServerError());
+        server.expect(requestTo("https://test-store.mysapo.net/admin/products.json?page=1&limit=50"))
+                .andExpect(method(HttpMethod.GET))
+                .andRespond(withServerError());
+
+        assertThrows(RestClientException.class, () -> client.listProducts(1, 50));
+
+        server.verify();
+    }
+
+    @Test
+    void countProducts_SucceedsFirstAttempt_DoesNotSleep() {
+        RestClient.Builder builder = RestClient.builder().baseUrl("https://test-store.mysapo.net");
+        MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
+        SapoApiClient client = new SapoApiClient(builder.build());
+
+        server.expect(requestTo("https://test-store.mysapo.net/admin/products/count.json"))
+                .andExpect(method(HttpMethod.GET))
+                .andRespond(withSuccess("{\"count\":42}", MediaType.APPLICATION_JSON));
+
+        long start = System.currentTimeMillis();
+        long count = client.countProducts();
+        long elapsedMillis = System.currentTimeMillis() - start;
+
+        server.verify();
+        assertEquals(42L, count);
+        assertTrue(elapsedMillis < 400, "First-attempt success must not sleep; took " + elapsedMillis + "ms");
     }
 }
