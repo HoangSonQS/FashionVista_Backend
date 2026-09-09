@@ -11,12 +11,15 @@ import com.fashionvista.backend.integration.sapo.dto.SapoOrderPushRequest;
 import com.fashionvista.backend.integration.sapo.dto.SapoOrderPushResponse;
 import com.fashionvista.backend.integration.sapo.dto.SapoPriceRuleRequest;
 import com.fashionvista.backend.integration.sapo.dto.SapoPriceRuleResponse;
+import com.fashionvista.backend.integration.sapo.dto.SapoProductCountResponse;
+import com.fashionvista.backend.integration.sapo.dto.SapoProductListResponse;
 import com.fashionvista.backend.integration.sapo.dto.SapoProductPushRequest;
 import com.fashionvista.backend.integration.sapo.dto.SapoProductPushResponse;
 import com.fashionvista.backend.integration.sapo.dto.SapoTransactionRequest;
 import com.fashionvista.backend.integration.sapo.dto.SapoTransactionResponse;
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
+import java.util.function.Supplier;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
@@ -28,6 +31,8 @@ import org.springframework.web.client.RestClient;
 public class SapoApiClient {
 
     private static final int TIMEOUT_MILLIS = 5000;
+    private static final int MAX_ATTEMPTS = 3;
+    private static final long[] BACKOFF_MS = {500, 1000};
 
     private final RestClient restClient;
 
@@ -170,5 +175,40 @@ public class SapoApiClient {
                 .body(request)
                 .retrieve()
                 .body(SapoDiscountCodeResponse.class);
+    }
+
+    public SapoProductListResponse listProducts(int page, int limit) {
+        return withRetry(() -> restClient.get()
+                .uri("/admin/products.json?page={page}&limit={limit}", page, limit)
+                .retrieve()
+                .body(SapoProductListResponse.class));
+    }
+
+    public long countProducts() {
+        return withRetry(() -> restClient.get()
+                .uri("/admin/products/count.json")
+                .retrieve()
+                .body(SapoProductCountResponse.class))
+                .getCount();
+    }
+
+    private <T> T withRetry(Supplier<T> call) {
+        RuntimeException lastError = null;
+        for (int attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
+            try {
+                return call.get();
+            } catch (RuntimeException ex) {
+                lastError = ex;
+                if (attempt < MAX_ATTEMPTS - 1) {
+                    try {
+                        Thread.sleep(BACKOFF_MS[attempt]);
+                    } catch (InterruptedException ie) {
+                        Thread.currentThread().interrupt();
+                        throw lastError;
+                    }
+                }
+            }
+        }
+        throw lastError;
     }
 }
