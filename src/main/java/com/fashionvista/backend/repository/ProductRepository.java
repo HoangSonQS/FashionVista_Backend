@@ -23,4 +23,7 @@ public interface ProductRepository extends JpaRepository<Product, Long>, JpaSpec
 
     @Query("select distinct p from Product p left join fetch p.variants where p.sapoSyncStatus <> :sapoSyncStatus")
     List<Product> findBySapoSyncStatusNot(SapoSyncStatus sapoSyncStatus);
+
+    @Query("select distinct p from Product p left join fetch p.variants where p.sapoProductId is not null")
+    List<Product> findBySapoProductIdIsNotNull();
 }
